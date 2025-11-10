@@ -15,7 +15,7 @@ from aiogram.utils import executor
 TOKEN = "8212255968:AAETRL91puhUESsCP7eFKm7pE51tKgm6SQo"
 GROUP_ID = -1002589715287
 ADMIN_USERNAME = "akramjonovPY"
-ADMIN_ID = None
+ADMIN_ID = 6302873072
 
 DATA_FILE = Path("taxi_data.json")
 # ========================
