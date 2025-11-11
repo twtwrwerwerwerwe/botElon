@@ -921,7 +921,7 @@ async def fallback_handler(message: types.Message):
                 d = u['draft_ad']
                 ad_preview = {
                     "id": data['next_ad_id'],
-                    "user_id': uid,
+                    "user_id": uid,
                     "username": f"@{u.get('username')}" if u.get('username') else "",
                     "phone": d.get('phone','-'),
                     "direction": d.get('direction','-'),
