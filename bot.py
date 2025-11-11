@@ -10,8 +10,8 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ParseMode
 from aiogram.utils import executor
 
 # ================== SOZLAMALAR ==================
-TOKEN = "YOUR_BOT_TOKEN_HERE"   # <-- bu yerga o'zingizning tokenni qo'ying
-GROUP_ID = -1001234567890       # <-- guruh/chat ID (masalan: -100xxxx)
+TOKEN = "8212255968:AAETRL91puhUESsCP7eFKm7pE51tKgm6SQo"   # <-- bu yerga o'zingizning tokenni qo'ying
+GROUP_ID = --1002589715287       # <-- guruh/chat ID (masalan: -100xxxx)
 DATA_FILE = Path("taxi_data.json")
 # =================================================
 
