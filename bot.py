@@ -11,7 +11,7 @@ from aiogram.utils import executor
 
 # ================== SOZLAMALAR ==================
 TOKEN = "8212255968:AAETRL91puhUESsCP7eFKm7pE51tKgm6SQo"   # <-- bu yerga o'zingizning tokenni qo'ying
-GROUP_ID = -5078793194, -1002963614686       # <-- guruh/chat ID (masalan: -100xxxx)
+GROUP_ID = -1002589715287       # <-- guruh/chat ID (masalan: -100xxxx)
 DATA_FILE = Path("taxi_data.json")
 # =================================================
 
@@ -203,7 +203,7 @@ async def driver_create_start(message: types.Message):
     save_data()
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add(KeyboardButton("◀️ Orqaga"))
-    await message.answer("✍️ Iltimos e'lon matnini yozing (misol: “Bo'sh 2 joy, Rishton→Toshkent, bugun 14:00”):", reply_markup=kb)
+    await message.answer("✍️ Iltimos e'lon matnini yozing (misol: “Faqat nechta odam va qachon yurishingizni yozing!”):", reply_markup=kb)
 
 @dp.message_handler(lambda m: m.text == "🗂 E'lonlar")
 async def show_all_ads(message: types.Message):
