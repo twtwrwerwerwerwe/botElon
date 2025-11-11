@@ -37,7 +37,7 @@ data = {
     "approved_drivers": []  # list of user_id larga haydovchi huquqi berilgan
 }
 
-BOT_LINK = https://t.me/RishtonBuvaydaBogdod_bot  # ishga tushganda to'ldiriladi (https://t.me/<bot_username>)
+BOT_LINK = "https://t.me/RishtonBuvaydaBogdod_bot"  # ishga tushganda to'ldiriladi (https://t.me/<bot_username>)
 
 # ======= yuklash/saqlash =======
 def load_data():
