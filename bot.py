@@ -11,7 +11,7 @@ from aiogram.utils import executor
 
 # ================== SOZLAMALAR ==================
 TOKEN = "8212255968:AAETRL91puhUESsCP7eFKm7pE51tKgm6SQo"   # <-- bu yerga o'zingizning tokenni qo'ying
-GROUP_ID = -1002589715287       # <-- guruh/chat ID (masalan: -100xxxx)
+GROUP_ID = -1002774668004       # <-- guruh/chat ID (masalan: -100xxxx)
 DATA_FILE = Path("taxi_data.json")
 # =================================================
 
