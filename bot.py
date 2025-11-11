@@ -352,7 +352,7 @@ async def passenger_time(message: types.Message):
     data['users'][uid]['draft_ad']['time'] = text
     data['users'][uid]['state'] = 'passenger_wait_count'
     save_data()
-    await message.answer("🧍 Necha kishi bor? (misol: 1 kishi, 2 kishi, Pochta bor)", reply_markup=ReplyKeyboardMarkup(resize_keyboard=True).row(KeyboardButton("👤 1 kishi"), KeyboardButton("👥 2 kishi")).row(KeyboardButton("📦 Pochta bor"), KeyboardButton("◀️ Orqaga")))
+    await message.answer("🧍 Necha kishi bor? (misol: 1 kishi, 2 kishi, 3 kishi, 4 kishi, Pochta bor)", reply_markup=ReplyKeyboardMarkup(resize_keyboard=True).row(KeyboardButton("👤 1 kishi"), KeyboardButton("👥 2 kishi")).row(KeyboardButton("📦 Pochta bor"), KeyboardButton("◀️ Orqaga")))
 
 @dp.message_handler(lambda m: data['users'].get(m.from_user.id,{}).get('state') == 'passenger_wait_count')
 async def passenger_count(message: types.Message):
@@ -398,7 +398,7 @@ async def driver_car(message: types.Message):
     if message.text == "🟢 Boshqa":
         data['users'][uid]['state'] = 'driver_wait_custom_car'
         save_data()
-        await message.answer("Iltimos o'zingizning mashina modelini yozing (masalan: Labo 2020 yoki O'z mashinam):", reply_markup=ReplyKeyboardMarkup(resize_keyboard=True).add(KeyboardButton("◀️ Orqaga")))
+        await message.answer("Iltimos o'zingizning mashina modelini yozing (masalan: o'zingizni mashinangiz):", reply_markup=ReplyKeyboardMarkup(resize_keyboard=True).add(KeyboardButton("◀️ Orqaga")))
         return
     # regular car selected
     data['users'][uid]['draft_ad']['car'] = message.text
@@ -453,14 +453,14 @@ async def contact_received(message: types.Message):
     await message.answer("Telefon qabul qilindi.", reply_markup=start_kb())
 
 # ======= Photo handler (for optional car/photo upload) =======
-@dp.message_handler(content_types=types.ContentType.PHOTO)
-async def photo_received(message: types.Message):
-    uid = message.from_user.id
-    if uid not in data['users']:
-        await message.answer("Iltimos avval /start ni bosing.", reply_markup=start_kb())
-        return
-    u = data['users'][uid]
-    state = u.get('state')
+# @dp.message_handler(content_types=types.ContentType.PHOTO)
+# async def photo_received(message: types.Message):
+#     uid = message.from_user.id
+#     if uid not in data['users']:
+#         await message.answer("Iltimos avval /start ni bosing.", reply_markup=start_kb())
+#         return
+#     u = data['users'][uid]
+#     state = u.get('state')
 
     # pick highest quality photo file_id
     file_id = message.photo[-1].file_id
