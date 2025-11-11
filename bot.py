@@ -11,7 +11,7 @@ from aiogram.utils import executor
 
 # ================== SOZLAMALAR ==================
 TOKEN = "8212255968:AAETRL91puhUESsCP7eFKm7pE51tKgm6SQo"   # <-- bu yerga o'zingizning tokenni qo'ying
-GROUP_ID = -1002589715287       # <-- guruh/chat ID (masalan: -100xxxx)
+GROUP_ID = -5078793194, -1002963614686       # <-- guruh/chat ID (masalan: -100xxxx)
 DATA_FILE = Path("taxi_data.json")
 # =================================================
 
@@ -54,7 +54,7 @@ DIRECTIONS = [
     "🚗 Bag‘dod → Toshkent", "🚗 Toshkent → Bag‘dod",
 ]
 
-CARS = ["Malibu", "Tracker", "BYD", "Kia k5", "Cobalt", "Gentra", "Nexia"]
+CARS = ["Malibu 1", "Tracker 2", "BYD", "Kia k5", "Cobalt", "Gentra", "Nexia", "Malibu 1", "Onix", "Monza"]
 
 # ======= keyboard makers =======
 def start_kb():
@@ -126,7 +126,6 @@ def format_passenger_ad(ad):
 def format_driver_ad(ad):
     # haydovchi e'lonida hozir foydalanuvchi yozgan "text" ham ko'rsatiladi
     t = (
-        f"📣 <b>Haydovchi e'lon</b>\n\n"
         f"{ad.get('text','')}\n\n"
         f"🛣 <b>Yo‘nalish:</b> {ad.get('direction','-')}\n\n"
         f"📞 <b>Telefon:</b> {ad.get('phone','-')}\n\n"
