@@ -148,13 +148,11 @@ def format_passenger_ad(ad):
 
 def format_driver_ad(ad):
     t = (
-        f"🚘 <b>Haydovchi e'lon #{ad['id']}</b>\n\n"
         f"{ad.get('text','')}\n\n"
         f"🛣 <b>Yo‘nalish:</b> {ad.get('direction','-')}\n\n"
         f"📞 <b>Telefon:</b> {ad.get('phone','-')}\n\n"
         f"🚗 <b>Mashina:</b> {ad.get('car','-')}\n\n"
         f"🕒 <b>Kun:</b> {ad.get('date','-')}\n\n"
-        f"🆔 <b>UserID:</b> {ad.get('user_id','-')}\n"
     )
     return t
 
