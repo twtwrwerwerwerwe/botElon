@@ -10,8 +10,14 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ParseMode
 from aiogram.utils import executor
 
 # ================== SOZLAMALAR ==================
-TOKEN = "8212255968:AAETRL91puhUESsCP7eFKm7pE51tKgm6SQo"   # <-- bu yerga o'zingizning tokenni qo'ying
-GROUP_ID = -1002774668004       # <-- guruh/chat ID (masalan: -100xxxx)
+TOKEN = "8212255968:AAETRL91puhUESsCP7eFKm7pE51tKgm6SQo"   # <-- o'zingiz tokenni qo'ying
+# Eski yagona GROUP_ID saqlanmoqda fallback uchun:
+# GROUP_ID = -1002774668004       # <-- eski guruh/chat ID (masalan: -100xxxx)
+
+# Yangi: haydovchi va yo'lovchi uchun alohida guruhlar
+DRIVER_GROUP_ID = -1001499767213       # <-- haydovchilar e'lonlari uchun guruh ID (o'zgartiring)
+PASSENGER_GROUP_ID = -1002774668004    # <-- yo'lovchilar e'lonlari uchun guruh ID (o'zgartiring)
+
 DATA_FILE = Path("taxi_data.json")
 # =================================================
 
@@ -23,7 +29,7 @@ data = {
     "users": {},   # uid -> {role, phone, state, draft_ad, username}
     "ads": [],     # list of ads (haydovchi va yo'lovchi aralash)
     "next_ad_id": 1,
-    "jobs": {}     # ad_id -> {task, stop_flag, user_id}
+    "jobs": {}     # ad_id -> {task, stop_flag, user_id, interval}
 }
 
 # ======= yordamchi funksiya: yuklash/saqlash =======
@@ -38,6 +44,7 @@ def load_data():
 
 
 def save_data():
+    # jobs obyektni saqlamaymiz (task obyektlari jsonlanmaydi)
     to_save = {k: v for k, v in data.items() if k != "jobs"}
     DATA_FILE.write_text(json.dumps(to_save, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -87,11 +94,19 @@ def cars_kb():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     for c in CARS:
         kb.add(KeyboardButton(c))
+    kb.add(KeyboardButton("🟢 Boshqa"))
     kb.add(KeyboardButton("◀️ Orqaga"))
     return kb
 
 def contact_request_kb():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add(KeyboardButton("📱 Telefon raqamni yuborish", request_contact=True))
+    kb.add(KeyboardButton("◀️ Orqaga"))
+    return kb
+
+def photo_or_skip_kb():
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add(KeyboardButton("⛔ Tashlab ketish"))
     kb.add(KeyboardButton("📱 Telefon raqamni yuborish", request_contact=True))
     kb.add(KeyboardButton("◀️ Orqaga"))
     return kb
@@ -114,29 +129,29 @@ def post_control_kb():
 def format_passenger_ad(ad):
     t = (
         f"🚕 <b>Yangi buyurtma #{ad['id']}</b>\n\n"
-        f"🛣 <b>Yo‘nalish:</b> {ad['direction']}\n\n"
-        f"📞 <b>Telefon:</b> {ad['phone']}\n\n"
+        f"🛣 <b>Yo‘nalish:</b> {ad.get('direction','-')}\n\n"
+        f"📞 <b>Telefon:</b> {ad.get('phone','-')}\n\n"
         f"👤 <b>Foydalanuvchi:</b> {ad.get('username','-')}\n\n"
         f"🚗 <b>Buyurtma turi:</b> {ad.get('count','-')}\n\n"
         f"🕒 <b>Kun:</b> {ad.get('date','-')}  |  <b>Soat:</b> {ad.get('time','-')}\n\n"
-        f"🆔 <b>UserID:</b> {ad['user_id']}\n"
+        f"🆔 <b>UserID:</b> {ad.get('user_id','-')}\n"
     )
     return t
 
 def format_driver_ad(ad):
-    # haydovchi e'lonida hozir foydalanuvchi yozgan "text" ham ko'rsatiladi
     t = (
         f"{ad.get('text','')}\n\n"
         f"🛣 <b>Yo‘nalish:</b> {ad.get('direction','-')}\n\n"
         f"📞 <b>Telefon:</b> {ad.get('phone','-')}\n\n"
         f"🚗 <b>Mashina:</b> {ad.get('car','-')}\n\n"
         f"🕒 <b>Kun:</b> {ad.get('date','-')}\n\n"
+        f"🆔 <b>UserID:</b> {ad.get('user_id','-')}\n"
     )
     return t
 
 # ======= sending task (haydovchi e'lonlarini cheksiz yuborish) =======
 async def send_indefinitely(ad_id):
-    """Ad_id ga mos adni GROUP_ID ga interval bo'yicha yuboradi; to'xtatish flag tekshiriladi."""
+    """Ad_id ga mos adni tegishli guruhga interval bo'yicha yuboradi; to'xtatish flag tekshiriladi."""
     job = data['jobs'].get(ad_id)
     if not job:
         return
@@ -144,15 +159,27 @@ async def send_indefinitely(ad_id):
     ad = next((a for a in data['ads'] if a['id'] == ad_id), None)
     if not ad:
         return
+    # qaysi guruhga yuborish kerakligini aniqlaymiz
+    target = DRIVER_GROUP_ID if ad.get('role') == 'driver' else PASSENGER_GROUP_ID
+    if not target:
+        target = GROUP_ID
+
     while True:
         # check stop
         job = data['jobs'].get(ad_id)
         if not job or job.get('stop'):
             break
-        # send message
+        # send message (photo bo'lsa photo bilan)
         try:
             text = format_driver_ad(ad) if ad.get('role') == 'driver' else format_passenger_ad(ad)
-            await bot.send_message(GROUP_ID, text, parse_mode=ParseMode.HTML)
+            if ad.get('photo'):
+                try:
+                    await bot.send_photo(target, ad['photo'], caption=text, parse_mode=ParseMode.HTML)
+                except Exception as e:
+                    print("Photo send error (indef):", e)
+                    await bot.send_message(target, text, parse_mode=ParseMode.HTML)
+            else:
+                await bot.send_message(target, text, parse_mode=ParseMode.HTML)
         except Exception as e:
             print("Send error:", e)
         await asyncio.sleep(int(interval * 60))
@@ -194,7 +221,7 @@ async def choose_role(message: types.Message):
 async def driver_create_start(message: types.Message):
     """
     Endi birinchi bosqich: Matn kiriting.
-    keyin yo'nalish -> mashina -> contact -> interval -> tasdiqlash
+    keyin yo'nalish -> mashina -> rasm -> contact -> interval -> tasdiqlash
     """
     uid = message.from_user.id
     u = data['users'].setdefault(uid, {})
@@ -212,7 +239,14 @@ async def show_all_ads(message: types.Message):
         return
     for ad in reversed(data['ads']):
         text = format_driver_ad(ad) if ad.get('role') == 'driver' else format_passenger_ad(ad)
-        await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=driver_main_kb())
+        # agar rasm bo'lsa, uni yuboramiz
+        if ad.get('photo'):
+            try:
+                await message.answer_photo(ad['photo'], caption=text, parse_mode=ParseMode.HTML, reply_markup=driver_main_kb())
+            except:
+                await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=driver_main_kb())
+        else:
+            await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=driver_main_kb())
 
 @dp.message_handler(lambda m: m.text == "🧾 Mening e'lonlarim" and data['users'].get(m.from_user.id,{}).get('role') == 'driver')
 async def my_ads(message: types.Message):
@@ -226,7 +260,13 @@ async def my_ads(message: types.Message):
         kb = ReplyKeyboardMarkup(resize_keyboard=True)
         kb.row(KeyboardButton("⏸ Habarni to'xtatish"), KeyboardButton("➕ Yangi habar"))
         kb.add(KeyboardButton("◀️ Asosiy menyu"))
-        await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+        if ad.get('photo'):
+            try:
+                await message.answer_photo(ad['photo'], caption=text, parse_mode=ParseMode.HTML, reply_markup=kb)
+            except:
+                await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+        else:
+            await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=kb)
 
 # ======= Passenger main: E'lon berish =======
 @dp.message_handler(lambda m: m.text == "🚕 E'lon berish" and data['users'].get(m.from_user.id,{}).get('role') == 'passenger')
@@ -347,13 +387,41 @@ async def driver_receive_text(message: types.Message):
     await message.answer("🛣 Yo'nalishni tanlang (e'lon uchun):", reply_markup=directions_kb())
 
 # ======= Car selection for driver =======
-@dp.message_handler(lambda m: m.text in CARS and data['users'].get(m.from_user.id,{}).get('state') == 'driver_wait_car')
+@dp.message_handler(lambda m: m.text in CARS + ["🟢 Boshqa"] and data['users'].get(m.from_user.id,{}).get('state') == 'driver_wait_car')
 async def driver_car(message: types.Message):
     uid = message.from_user.id
+    if message.text == "◀️ Orqaga":
+        data['users'][uid]['state'] = None
+        data['users'][uid]['draft_ad'] = {}
+        save_data()
+        await message.answer("🔙 Orqaga qaytdingiz.", reply_markup=driver_main_kb())
+        return
+    if message.text == "🟢 Boshqa":
+        data['users'][uid]['state'] = 'driver_wait_custom_car'
+        save_data()
+        await message.answer("Iltimos o'zingizning mashina modelini yozing (masalan: Labo 2020 yoki O'z mashinam):", reply_markup=ReplyKeyboardMarkup(resize_keyboard=True).add(KeyboardButton("◀️ Orqaga")))
+        return
+    # regular car selected
     data['users'][uid]['draft_ad']['car'] = message.text
-    data['users'][uid]['state'] = 'driver_wait_contact'
+    # end of car selection: request optional photo and contact (state allows both)
+    data['users'][uid]['state'] = 'driver_wait_contact_or_photo'
     save_data()
-    await message.answer("📞 Telefon raqamingizni yuboring (tugma orqali yuborish tavsiya etiladi):", reply_markup=contact_request_kb())
+    await message.answer("📷 Endi mashina rasmi yuboring (majburiy emas). Rasm yuborib keyin telefonni tugma orqali yuborishingiz mumkin yoki tashlab o'tishingiz mumkin.", reply_markup=photo_or_skip_kb())
+
+@dp.message_handler(lambda m: data['users'].get(m.from_user.id,{}).get('state') == 'driver_wait_custom_car')
+async def driver_custom_car(message: types.Message):
+    uid = message.from_user.id
+    text = message.text.strip()
+    if text == "◀️ Orqaga":
+        data['users'][uid]['state'] = None
+        data['users'][uid]['draft_ad'] = {}
+        save_data()
+        await message.answer("🔙 Orqaga qaytdingiz.", reply_markup=driver_main_kb())
+        return
+    data['users'][uid]['draft_ad']['car'] = text
+    data['users'][uid]['state'] = 'driver_wait_contact_or_photo'
+    save_data()
+    await message.answer("📷 Endi mashina rasmi yuboring (majburiy emas). Rasm yuborib keyin telefonni tugma orqali yuborishingiz mumkin yoki tashlab o'tishingiz mumkin.", reply_markup=photo_or_skip_kb())
 
 # ======= Contact handler (both passenger and driver) =======
 @dp.message_handler(content_types=types.ContentType.CONTACT)
@@ -367,16 +435,50 @@ async def contact_received(message: types.Message):
     u['draft_ad']['phone'] = phone
     save_data()
 
-    # continue flow based on state
     state = u.get('state')
-    if state == 'driver_wait_contact':
+    # Driver case: if waiting for contact_or_photo, move to interval step after contact
+    if state == 'driver_wait_contact_or_photo':
         u['state'] = 'driver_wait_interval'
         save_data()
         await message.answer("⏱ Endi xabar qanchalik tez yuborilsin? (daqiqada) — raqam kiriting. Masalan: 5  (har 5 daqiqada yuborilsin)", reply_markup=ReplyKeyboardMarkup(resize_keyboard=True).add(KeyboardButton("◀️ Orqaga")))
         return
+
+    # Passenger case: after contact, ask for optional photo then preview
     if state == 'passenger_wait_contact':
+        u['state'] = 'passenger_wait_photo'
+        save_data()
+        await message.answer("📷 Hoziroq rasm qo'shmoqchimisiz? Rasm yuboring yoki '⛔ Tashlab ketish' tugmasini bosing.", reply_markup=ReplyKeyboardMarkup(resize_keyboard=True).add(KeyboardButton("⛔ Tashlab ketish")).add(KeyboardButton("◀️ Asosiy menyu")))
+        return
+
+    # fallback: if contact in other states, just acknowledge
+    await message.answer("Telefon qabul qilindi.", reply_markup=start_kb())
+
+# ======= Photo handler (for optional car/photo upload) =======
+@dp.message_handler(content_types=types.ContentType.PHOTO)
+async def photo_received(message: types.Message):
+    uid = message.from_user.id
+    if uid not in data['users']:
+        await message.answer("Iltimos avval /start ni bosing.", reply_markup=start_kb())
+        return
+    u = data['users'][uid]
+    state = u.get('state')
+
+    # pick highest quality photo file_id
+    file_id = message.photo[-1].file_id
+
+    # Driver: if waiting for contact_or_photo, store photo and keep waiting for contact (or let them move on)
+    if state == 'driver_wait_contact_or_photo':
+        u['draft_ad']['photo'] = file_id
+        save_data()
+        await message.answer("✅ Rasm olindi. Endi telefon raqamingizni tugma orqali yuboring yoki intervalni kiritish uchun avval telefonni yuboring.", reply_markup=contact_request_kb())
+        return
+
+    # Passenger: if waiting for photo, attach and go to preview
+    if state == 'passenger_wait_photo':
+        u['draft_ad']['photo'] = file_id
+        # prepare ad preview and go to confirm
         u['state'] = 'passenger_confirm'
-        # prepare ad preview
+        save_data()
         d = u['draft_ad']
         ad_preview = {
             "id": data['next_ad_id'],
@@ -388,14 +490,21 @@ async def contact_received(message: types.Message):
             "date": d.get('date','-'),
             "time": d.get('time','-'),
             "created_at": int(time.time()),
-            "role": "passenger"
+            "role": "passenger",
+            "photo": d.get('photo')
         }
         text = format_passenger_ad(ad_preview)
         kb = ReplyKeyboardMarkup(resize_keyboard=True)
         kb.row(KeyboardButton("✅ Tasdiqlash"), KeyboardButton("🧹 Tozalash"))
         kb.add(KeyboardButton("◀️ Asosiy menyu"))
-        await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+        try:
+            await message.answer_photo(file_id, caption=text, parse_mode=ParseMode.HTML, reply_markup=kb)
+        except:
+            await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=kb)
         return
+
+    # Other states: ignore or inform
+    await message.answer("Hozir rasm qabul qilinmadi. Iltimos menyu orqali davom eting.", reply_markup=start_kb())
 
 # ======= Interval input for driver (text numeric) =======
 @dp.message_handler(lambda m: data['users'].get(m.from_user.id,{}).get('state') == 'driver_wait_interval')
@@ -403,9 +512,9 @@ async def driver_interval_input(message: types.Message):
     uid = message.from_user.id
     text = message.text.strip()
     if text == "◀️ Orqaga":
-        data['users'][uid]['state'] = 'driver_wait_contact'
+        data['users'][uid]['state'] = 'driver_wait_contact_or_photo'
         save_data()
-        await message.answer("📞 Telefon raqamingizni yuboring:", reply_markup=contact_request_kb())
+        await message.answer("📞 Telefon raqamingizni yuboring (tugma orqali tavsiya etiladi) yoki rasm yuboring:", reply_markup=photo_or_skip_kb())
         return
     # expect a number (minutes)
     if not text.isdigit():
@@ -430,13 +539,21 @@ async def driver_interval_input(message: types.Message):
         "time": d.get('time','-'),
         "text": d.get('text','-'),
         "created_at": int(time.time()),
-        "role": "driver"
+        "role": "driver",
+        "photo": d.get('photo')
     }
     text = format_driver_ad(preview) + f"\n\n<i>Interval: {minutes} daqiqa (to'xtamaguncha yuboriladi)</i>"
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.row(KeyboardButton("✅ Tasdiqlash"), KeyboardButton("🧹 Tozalash"))
     kb.add(KeyboardButton("◀️ Asosiy menyu"))
-    await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+    # send preview with possible photo
+    if preview.get('photo'):
+        try:
+            await message.answer_photo(preview['photo'], caption=text, parse_mode=ParseMode.HTML, reply_markup=kb)
+        except:
+            await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+    else:
+        await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=kb)
 
 # ======= Confirmations =======
 @dp.message_handler(lambda m: m.text == "✅ Tasdiqlash")
@@ -458,13 +575,18 @@ async def confirm_handler(message: types.Message):
             "date": draft.get('date','-'),
             "time": draft.get('time','-'),
             "created_at": int(time.time()),
-            "role": "passenger"
+            "role": "passenger",
+            "photo": draft.get('photo')  # may be None
         }
         data['ads'].append(ad)
         data['next_ad_id'] += 1
-        # send once to group
+        # send once to passenger group (fallback to GROUP_ID)
+        target = PASSENGER_GROUP_ID or GROUP_ID
         try:
-            await bot.send_message(GROUP_ID, format_passenger_ad(ad), parse_mode=ParseMode.HTML)
+            if ad.get('photo'):
+                await bot.send_photo(target, ad['photo'], caption=format_passenger_ad(ad), parse_mode=ParseMode.HTML)
+            else:
+                await bot.send_message(target, format_passenger_ad(ad), parse_mode=ParseMode.HTML)
         except Exception as e:
             print("Send error:", e)
         # clear
@@ -487,7 +609,8 @@ async def confirm_handler(message: types.Message):
             "time": draft.get('time','-'),
             "text": draft.get('text','-'),
             "created_at": int(time.time()),
-            "role": "driver"
+            "role": "driver",
+            "photo": draft.get('photo')
         }
         data['ads'].append(ad)
         data['next_ad_id'] += 1
@@ -561,7 +684,13 @@ async def show_all_ads_button(message: types.Message):
         return
     for ad in reversed(data['ads']):
         text = format_driver_ad(ad) if ad.get('role') == 'driver' else format_passenger_ad(ad)
-        await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=ReplyKeyboardMarkup(resize_keyboard=True).add(KeyboardButton("◀️ Asosiy menyu")))
+        if ad.get('photo'):
+            try:
+                await message.answer_photo(ad['photo'], caption=text, parse_mode=ParseMode.HTML, reply_markup=ReplyKeyboardMarkup(resize_keyboard=True).add(KeyboardButton("◀️ Asosiy menyu")))
+            except:
+                await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=ReplyKeyboardMarkup(resize_keyboard=True).add(KeyboardButton("◀️ Asosiy menyu")))
+        else:
+            await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=ReplyKeyboardMarkup(resize_keyboard=True).add(KeyboardButton("◀️ Asosiy menyu")))
 
 # ======= Catch-all text handler for misc states (time input, phone typed manually, driver text fallback, etc.) =======
 @dp.message_handler()
@@ -572,6 +701,7 @@ async def fallback_handler(message: types.Message):
     # if user typing while in passenger_wait_time (alternative path)
     if u:
         state = u.get('state')
+        # passenger alternative time input
         if state == 'passenger_wait_time':
             # accept as time
             u['draft_ad']['time'] = text
@@ -587,14 +717,32 @@ async def fallback_handler(message: types.Message):
             await message.answer("📞 Telefon raqamingizni yuboring (tugma orqali yuborish tavsiya etiladi):", reply_markup=contact_request_kb())
             return
         if state == 'driver_wait_contact':
-            # user typed phone manually (not via contact)
+            # user typed phone manually (not via contact) -> this case may be rare because we use contact button earlier
             u['draft_ad']['phone'] = text
             u['state'] = 'driver_wait_interval'
             save_data()
             await message.answer("⏱ Iltimos interval (daqiqada) kiriting. Misol: 5", reply_markup=ReplyKeyboardMarkup(resize_keyboard=True).add(KeyboardButton("◀️ Orqaga")))
             return
+        if state == 'driver_wait_contact_or_photo':
+            # user typed phone manually here (if not using contact button)
+            if text == "⛔ Tashlab ketish":
+                # user chooses to skip photo and should press contact button or type phone
+                u['state'] = 'driver_wait_contact_or_photo'
+                save_data()
+                await message.answer("Rasm o'tkazib yuborildi. Iltimos telefon raqamingizni tugma orqali yuboring yoki yozing.", reply_markup=contact_request_kb())
+                return
+            # if they typed a phone number manually:
+            if text.replace("+","").replace(" ","").isdigit():
+                u['draft_ad']['phone'] = text
+                u['state'] = 'driver_wait_interval'
+                save_data()
+                await message.answer("⏱ Iltimos interval (daqiqada) kiriting. Misol: 5", reply_markup=ReplyKeyboardMarkup(resize_keyboard=True).add(KeyboardButton("◀️ Orqaga")))
+                return
+            # otherwise prompt
+            await message.answer("Iltimos telefon raqamni tugma orqali yuboring yoki rasm yuboring yoki '⛔ Tashlab ketish' bosing.", reply_markup=photo_or_skip_kb())
+            return
         if state == 'driver_wait_interval':
-            # typed interval
+            # typed interval (duplicate handling for fallback)
             if not text.isdigit():
                 await message.answer("Iltimos faqat raqam kiriting (daqiqada). Masalan: 5")
                 return
@@ -615,13 +763,20 @@ async def fallback_handler(message: types.Message):
                 "time": d.get('time','-'),
                 "text": d.get('text','-'),
                 "created_at": int(time.time()),
-                "role": "driver"
+                "role": "driver",
+                "photo": d.get('photo')
             }
             text_msg = format_driver_ad(preview) + f"\n\n<i>Interval: {minutes} daqiqa (to'xtamaguncha yuboriladi)</i>"
             kb = ReplyKeyboardMarkup(resize_keyboard=True)
             kb.row(KeyboardButton("✅ Tasdiqlash"), KeyboardButton("🧹 Tozalash"))
             kb.add(KeyboardButton("◀️ Asosiy menyu"))
-            await message.answer(text_msg, parse_mode=ParseMode.HTML, reply_markup=kb)
+            if preview.get('photo'):
+                try:
+                    await message.answer_photo(preview['photo'], caption=text_msg, parse_mode=ParseMode.HTML, reply_markup=kb)
+                except:
+                    await message.answer(text_msg, parse_mode=ParseMode.HTML, reply_markup=kb)
+            else:
+                await message.answer(text_msg, parse_mode=ParseMode.HTML, reply_markup=kb)
             return
         if state == 'driver_wait_text':
             # fallback: user typed text but didn't trigger handler? (redundant but safe)
@@ -632,6 +787,33 @@ async def fallback_handler(message: types.Message):
             return
         if state == 'wait_custom_direction':
             # handled above; redundant
+            return
+        if state == 'passenger_wait_photo':
+            if text == "⛔ Tashlab ketish":
+                # go to preview without photo
+                u['state'] = 'passenger_confirm'
+                save_data()
+                d = u['draft_ad']
+                ad_preview = {
+                    "id": data['next_ad_id'],
+                    "user_id": uid,
+                    "username": f"@{u.get('username')}" if u.get('username') else "",
+                    "phone": d.get('phone','-'),
+                    "direction": d.get('direction','-'),
+                    "count": d.get('count','-'),
+                    "date": d.get('date','-'),
+                    "time": d.get('time','-'),
+                    "created_at": int(time.time()),
+                    "role": "passenger"
+                }
+                text2 = format_passenger_ad(ad_preview)
+                kb = ReplyKeyboardMarkup(resize_keyboard=True)
+                kb.row(KeyboardButton("✅ Tasdiqlash"), KeyboardButton("🧹 Tozalash"))
+                kb.add(KeyboardButton("◀️ Asosiy menyu"))
+                await message.answer(text2, parse_mode=ParseMode.HTML, reply_markup=kb)
+                return
+            # otherwise remind
+            await message.answer("Rasm yuboring yoki '⛔ Tashlab ketish' tugmasini bosing.", reply_markup=ReplyKeyboardMarkup(resize_keyboard=True).add(KeyboardButton("⛔ Tashlab ketish")))
             return
     # default fallback
     await message.answer("Iltimos menyudan tanlang yoki /start ni bosing.", reply_markup=start_kb())
