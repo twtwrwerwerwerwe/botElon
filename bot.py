@@ -145,7 +145,6 @@ def format_driver_ad(ad):
         f"📞 <b>Telefon:</b> {ad.get('phone','-')}\n\n"
         f"🚗 <b>Mashina:</b> {ad.get('car','-')}\n\n"
         f"🕒 <b>Kun:</b> {ad.get('date','-')}\n\n"
-        f"🆔 <b>UserID:</b> {ad.get('user_id','-')}\n"
     )
     return t
 
