@@ -112,7 +112,6 @@ def post_control_kb():
 
 # ======= util: formatlash =======
 def format_passenger_ad(ad):
-    # Yo'lovchi formati (siz bergan namunaga o'xshash)
     t = (
         f"🚕 <b>Yangi buyurtma #{ad['id']}</b>\n\n"
         f"🛣 <b>Yo‘nalish:</b> {ad['direction']}\n\n"
@@ -125,12 +124,14 @@ def format_passenger_ad(ad):
     return t
 
 def format_driver_ad(ad):
-    # Haydovchi formati (soddaroq, "Buyurtma" deb emas)
+    # haydovchi e'lonida hozir foydalanuvchi yozgan "text" ham ko'rsatiladi
     t = (
-        f"🛣 <b>Yo‘nalish:</b> {ad['direction']}\n\n"
-        f"📞 <b>Telefon:</b> {ad['phone']}\n\n"
+        f"📣 <b>Haydovchi e'lon</b>\n\n"
+        f"{ad.get('text','')}\n\n"
+        f"🛣 <b>Yo‘nalish:</b> {ad.get('direction','-')}\n\n"
+        f"📞 <b>Telefon:</b> {ad.get('phone','-')}\n\n"
         f"🚗 <b>Mashina:</b> {ad.get('car','-')}\n\n"
-        f"🕒 <b>Kun:</b> {ad.get('date','-')}  |  <b>Soat:</b> {ad.get('time','-')}\n\n"
+        f"🕒 <b>Kun:</b> {ad.get('date','-')}\n\n"
     )
     return t
 
@@ -192,12 +193,18 @@ async def choose_role(message: types.Message):
 # ======= Driver main buttons =======
 @dp.message_handler(lambda m: m.text == "📣 E'lon berish" and data['users'].get(m.from_user.id,{}).get('role') == 'driver')
 async def driver_create_start(message: types.Message):
+    """
+    Endi birinchi bosqich: Matn kiriting.
+    keyin yo'nalish -> mashina -> contact -> interval -> tasdiqlash
+    """
     uid = message.from_user.id
     u = data['users'].setdefault(uid, {})
-    u['state'] = 'driver_wait_direction'
+    u['state'] = 'driver_wait_text'
     u['draft_ad'] = {"role": "driver", "user_id": uid, "username": u.get('username','-')}
     save_data()
-    await message.answer("🛣 Yo'nalishni tanlang:", reply_markup=directions_kb())
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add(KeyboardButton("◀️ Orqaga"))
+    await message.answer("✍️ Iltimos e'lon matnini yozing (misol: “Bo'sh 2 joy, Rishton→Toshkent, bugun 14:00”):", reply_markup=kb)
 
 @dp.message_handler(lambda m: m.text == "🗂 E'lonlar")
 async def show_all_ads(message: types.Message):
@@ -244,11 +251,10 @@ async def direction_chosen(message: types.Message):
         return
     # regular direction
     u['draft_ad']['direction'] = message.text
-    # if passenger -> ask date/time and count; if driver -> ask car
+    # if passenger -> ask date/time and count; if driver -> ask car (but driver may already have text)
     if u['role'] == 'passenger':
         u['state'] = 'passenger_wait_date'
         save_data()
-        # ask for date (Bugun / Ertaga)
         kb = ReplyKeyboardMarkup(resize_keyboard=True)
         kb.row(KeyboardButton("📅 Bugun"), KeyboardButton("📅 Ertaga"))
         kb.add(KeyboardButton("◀️ Orqaga"))
@@ -290,9 +296,7 @@ async def passenger_date(message: types.Message):
     data['users'][uid]['draft_ad']['date'] = date
     data['users'][uid]['state'] = 'passenger_wait_time'
     save_data()
-    # ask time (simple: let user type HH:MM or use quick buttons)
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    # quick hours
     for h in range(6, 24, 2):
         kb.add(KeyboardButton(f"{h:02d}:00"))
     kb.add(KeyboardButton("◀️ Orqaga"))
@@ -307,7 +311,6 @@ async def passenger_time(message: types.Message):
         save_data()
         await message.answer("📅 Kun tanlang:", reply_markup=ReplyKeyboardMarkup(resize_keyboard=True).row(KeyboardButton("📅 Bugun"), KeyboardButton("📅 Ertaga")).add(KeyboardButton("◀️ Orqaga")))
         return
-    # accept whatever user sends
     data['users'][uid]['draft_ad']['time'] = text
     data['users'][uid]['state'] = 'passenger_wait_count'
     save_data()
@@ -326,6 +329,23 @@ async def passenger_count(message: types.Message):
     data['users'][uid]['state'] = 'passenger_wait_contact'
     save_data()
     await message.answer("📞 Telefon raqamingizni yuboring (tugma orqali yuborish tavsiya etiladi):", reply_markup=contact_request_kb())
+
+# ======= Driver flow: WAIT TEXT handler =======
+@dp.message_handler(lambda m: data['users'].get(m.from_user.id,{}).get('state') == 'driver_wait_text')
+async def driver_receive_text(message: types.Message):
+    uid = message.from_user.id
+    text = message.text.strip()
+    if text == "◀️ Orqaga":
+        data['users'][uid]['state'] = None
+        data['users'][uid]['draft_ad'] = {}
+        save_data()
+        await message.answer("🔙 Orqaga qaytdingiz.", reply_markup=driver_main_kb())
+        return
+    # store text and ask for direction
+    data['users'][uid]['draft_ad']['text'] = text
+    data['users'][uid]['state'] = 'driver_wait_direction'
+    save_data()
+    await message.answer("🛣 Yo'nalishni tanlang (e'lon uchun):", reply_markup=directions_kb())
 
 # ======= Car selection for driver =======
 @dp.message_handler(lambda m: m.text in CARS and data['users'].get(m.from_user.id,{}).get('state') == 'driver_wait_car')
@@ -398,7 +418,6 @@ async def driver_interval_input(message: types.Message):
     save_data()
     # show preview and confirm/clear
     d = data['users'][uid]['draft_ad']
-    # fill date default today
     if 'date' not in d:
         d['date'] = datetime.now().strftime("%Y-%m-%d")
     preview = {
@@ -410,6 +429,7 @@ async def driver_interval_input(message: types.Message):
         "car": d.get('car','-'),
         "date": d.get('date','-'),
         "time": d.get('time','-'),
+        "text": d.get('text','-'),
         "created_at": int(time.time()),
         "role": "driver"
     }
@@ -466,6 +486,7 @@ async def confirm_handler(message: types.Message):
             "car": draft.get('car','-'),
             "date": draft.get('date', datetime.now().strftime("%Y-%m-%d")),
             "time": draft.get('time','-'),
+            "text": draft.get('text','-'),
             "created_at": int(time.time()),
             "role": "driver"
         }
@@ -481,7 +502,7 @@ async def confirm_handler(message: types.Message):
         data['jobs'][ad_id]['task'] = task
         save_data()
         # reply with controls
-        await message.answer("✅ E'lon yaratilidi va yuborish boshlandi.", reply_markup=post_control_kb())
+        await message.answer("✅ E'lon yaratildi va yuborish boshlandi.", reply_markup=post_control_kb())
         # clear draft and state
         u['draft_ad'] = {}
         u['state'] = None
@@ -525,14 +546,16 @@ async def stop_handler(message: types.Message):
 @dp.message_handler(lambda m: m.text == "➕ Yangi habar")
 async def new_ad_handler(message: types.Message):
     uid = message.from_user.id
-    # start new ad flow
-    data['users'].setdefault(uid, {})['state'] = 'driver_wait_direction'
+    # start new ad flow (haydovchi uchun: boshlang'ich - MATN)
+    data['users'].setdefault(uid, {})['state'] = 'driver_wait_text'
     data['users'][uid]['draft_ad'] = {"role": "driver", "user_id": uid, "username": data['users'][uid].get('username','-')}
     save_data()
-    await message.answer("🛣 Yo'nalishni tanlang:", reply_markup=directions_kb())
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add(KeyboardButton("◀️ Orqaga"))
+    await message.answer("✍️ Iltimos e'lon matnini yozing:", reply_markup=kb)
 
 # ======= Show all ads (global) =======
-@dp.message_handler(lambda m: m.text == "🗂 E'lonlar" and data['users'].get(m.from_user.id,{}).get('role') == 'passenger' or m.text == "🗂 E'lonlar'")  # passenger or generic
+@dp.message_handler(lambda m: (m.text == "🗂 E'lonlar" and data['users'].get(m.from_user.id,{}).get('role') == 'passenger') or m.text == "🗂 E'lonlar'")
 async def show_all_ads_button(message: types.Message):
     if not data['ads']:
         await message.answer("Hozircha e'lonlar yo'q.", reply_markup=start_kb())
@@ -541,7 +564,7 @@ async def show_all_ads_button(message: types.Message):
         text = format_driver_ad(ad) if ad.get('role') == 'driver' else format_passenger_ad(ad)
         await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=ReplyKeyboardMarkup(resize_keyboard=True).add(KeyboardButton("◀️ Asosiy menyu")))
 
-# ======= Catch-all text handler for misc states (time input, phone typed manually, etc.) =======
+# ======= Catch-all text handler for misc states (time input, phone typed manually, driver text fallback, etc.) =======
 @dp.message_handler()
 async def fallback_handler(message: types.Message):
     uid = message.from_user.id
@@ -567,7 +590,6 @@ async def fallback_handler(message: types.Message):
         if state == 'driver_wait_contact':
             # user typed phone manually (not via contact)
             u['draft_ad']['phone'] = text
-            u['draft_ad']['phone'] = text
             u['state'] = 'driver_wait_interval'
             save_data()
             await message.answer("⏱ Iltimos interval (daqiqada) kiriting. Misol: 5", reply_markup=ReplyKeyboardMarkup(resize_keyboard=True).add(KeyboardButton("◀️ Orqaga")))
@@ -592,6 +614,7 @@ async def fallback_handler(message: types.Message):
                 "car": d.get('car','-'),
                 "date": d.get('date', datetime.now().strftime("%Y-%m-%d")),
                 "time": d.get('time','-'),
+                "text": d.get('text','-'),
                 "created_at": int(time.time()),
                 "role": "driver"
             }
@@ -600,6 +623,13 @@ async def fallback_handler(message: types.Message):
             kb.row(KeyboardButton("✅ Tasdiqlash"), KeyboardButton("🧹 Tozalash"))
             kb.add(KeyboardButton("◀️ Asosiy menyu"))
             await message.answer(text_msg, parse_mode=ParseMode.HTML, reply_markup=kb)
+            return
+        if state == 'driver_wait_text':
+            # fallback: user typed text but didn't trigger handler? (redundant but safe)
+            data['users'][uid]['draft_ad']['text'] = text
+            data['users'][uid]['state'] = 'driver_wait_direction'
+            save_data()
+            await message.answer("🛣 Yo'nalishni tanlang:", reply_markup=directions_kb())
             return
         if state == 'wait_custom_direction':
             # handled above; redundant
