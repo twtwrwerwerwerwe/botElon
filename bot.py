@@ -138,7 +138,7 @@ def format_passenger_ad(ad):
     t = (
         f"🚕 <b>Yangi buyurtma #{ad['id']}</b>\n\n"
         f"🛣 <b>Yo‘nalish:</b> {ad.get('direction','-')}\n\n"
-        f"📞 <b>Telefon:</b> {ad.get('phone','-')}\n\n"
+        f"📞 <b>Telefon:</b> +{ad.get('phone','-')}\n\n"
         f"👤 <b>Foydalanuvchi:</b> {ad.get('username','-')}\n\n"
         f"🚗 <b>Buyurtma turi:</b> {ad.get('count','-')}\n\n"
         f"🕒 <b>Kun:</b> {ad.get('date','-')}  |  <b>Soat:</b> {ad.get('time','-')}\n\n"
@@ -150,7 +150,7 @@ def format_driver_ad(ad):
     t = (
         f"{ad.get('text','')}\n\n"
         f"🛣 <b>Yo‘nalish:</b> {ad.get('direction','-')}\n\n"
-        f"📞 <b>Telefon:</b> {ad.get('phone','-')}\n\n"
+        f"📞 <b>Telefon:</b> +{ad.get('phone','-')}\n\n"
         f"🚗 <b>Mashina:</b> {ad.get('car','-')}\n\n"
         f"🕒 <b>Kun:</b> {ad.get('date','-')}\n\n"
     )
