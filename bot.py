@@ -16,10 +16,10 @@ from aiogram.utils import executor
 TOKEN = "8212255968:AAETRL91puhUESsCP7eFKm7pE51tKgm6SQo"  # <-- bot tokenni shu yerga qo'ying
 
 # ADMINLAR (admin user_id lar)
-ADMINS = [6302873072]
+ADMINS = [6302873072, 6731395876 ]
 
 # Guruh / kanal ID lar (o'zgartiring)
-DRIVER_GROUP_ID = -1003292352387       # haydovchi e'lonlari joylanadigan guruh/channel
+DRIVER_GROUP_ID = -1001499767213       # haydovchi e'lonlari joylanadigan guruh/channel
 PASSENGER_GROUP_ID = -1002774668004    # yo'lovchi e'lonlari joylanadigan guruh/channel
 
 DATA_FILE = Path("taxi_data.json")
