@@ -2,29 +2,21 @@
   "users": {
     "6302873072": {
       "phone": "+998907829211",
-      "role": "passenger",
+      "role": "driver",
       "approved": false,
       "username": "akramjonovPY",
-      "direction": "🚗 Toshkent → Buvayda",
-      "date": "2025-11-11",
-      "time": "10:00",
-      "count": "📦 Pochta bor"
+      "direction": "🚗 Rishton → Toshkent",
+      "date": "2025-11-10",
+      "time": "01:00",
+      "count": "👤 1 kishi",
+      "state": null,
+      "draft_ad": {}
     },
     "230564295": {
       "phone": null,
       "role": null,
       "approved": false,
       "username": "Roma19911226"
-    },
-    "6302873072": {
-      "phone": "+998907829211",
-      "role": "passenger",
-      "approved": false,
-      "username": "akramjonovPY",
-      "direction": "🚗 Rishton → Toshkent",
-      "date": "2025-11-10",
-      "time": "01:00",
-      "count": "👤 1 kishi"
     }
   },
   "ads": [
@@ -62,5 +54,6 @@
       "created_at": 1762757563
     }
   ],
-  "next_ad_id": 4
+  "next_ad_id": 4,
+  "approved_drivers": []
 }
