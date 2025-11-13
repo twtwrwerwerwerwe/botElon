@@ -20,7 +20,7 @@ ADMINS = [6302873072, 6731395876 ]
 
 # Guruh / kanal ID lar (o'zgartiring)
 DRIVER_GROUP_ID = -1003292352387       # haydovchi e'lonlari joylanadigan guruh/channel
-PASSENGER_GROUP_ID = -1002774668004    # yo'lovchi e'lonlari joylanadigan guruh/channel
+PASSENGER_GROUP_ID = -1003443552869    # yo'lovchi e'lonlari joylanadigan guruh/channel
 
 DATA_FILE = Path("taxi_data.json")
 # =================================================
@@ -496,7 +496,22 @@ async def passenger_time(message: types.Message):
     data['users'][str(uid)]['draft_ad']['time'] = text
     data['users'][str(uid)]['state'] = 'passenger_wait_count'
     save_data()
-    await message.answer("🧍 Necha kishi bor? (misol: 1 kishi, 2 kishi, 3 kishi, 4 kishi, Pochta bor)", reply_markup=ReplyKeyboardMarkup(resize_keyboard=True).row(KeyboardButton("👤 1 kishi"), KeyboardButton("👥 2 kishi")).row(KeyboardButton("📦 Pochta bor"), KeyboardButton("◀️ Orqaga")))
+    await message.answer(
+    "🧍 Necha kishi bor? (misol: 1 kishi, 2 kishi, 3 kishi, 4 kishi, Pochta bor)",
+    reply_markup=ReplyKeyboardMarkup(resize_keyboard=True)
+    .row(
+        KeyboardButton("👤 1 kishi"),
+        KeyboardButton("👥 2 kishi")
+    )
+    .row(
+        KeyboardButton("👨‍👨‍👦 3 kishi"),
+        KeyboardButton("👨‍👨‍👨‍👦 4 kishi")
+    )
+    .row(
+        KeyboardButton("📦 Pochta bor"),
+        KeyboardButton("◀️ Orqaga")
+    )
+)
 
 @dp.message_handler(lambda m: data['users'].get(str(m.from_user.id),{}).get('state') == 'passenger_wait_count')
 async def passenger_count(message: types.Message):
