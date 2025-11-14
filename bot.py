@@ -9,12 +9,12 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMar
 from aiogram.utils import executor
 
 # ---------------- CONFIG ----------------
-TOKEN = "7956811170:AAE4mvrwmaxhgCr_cpq-U5s8DpgUyqXvAoA"
+TOKEN = "8212255968:AAETRL91puhUESsCP7eFKm7pE51tKgm6SQo"
 ADMIN_ID = 6302873072
-BOT_USERNAME = "dkjashdkjhas3dhkjas_bot"
+BOT_USERNAME = "https://t.me/RishtonBuvaydaBogdod_bot"
 
-DRIVER_CHANNELS = [-5063643704]
-PASSENGER_CHANNELS = [-5078793194]
+DRIVER_CHANNELS = [-1003292352387]
+PASSENGER_CHANNELS = [-1003443552869]
 
 DATA_FILE = Path("data.json")
 ADS_FILE  = Path("ads.json")
