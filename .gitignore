@@ -5,12 +5,17 @@ __pycache__/
 *.pyd
 *.sqlite3
 
-# Environment
+# Virtual Environment
 venv/
-.venv/
+env/
+ENV/
 
-# Session files
-*.session
+# Logs
+*.log
+
+# JSON / Data files (agar saqlashni xohlamasangiz)
+data.json
+ads.json
 
 # OS files
 .DS_Store
