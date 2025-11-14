@@ -286,14 +286,20 @@ async def pass_custom(message):
     await message.answer("Necha kishisiz?", reply_markup=kb)
 
 @dp.message_handler(lambda m: data['users'].get(str(m.from_user.id),{}).get('state')=="pass_people")
-async def pass_people(message):
-    uid=str(message.from_user.id)
-    data['users'][uid]['pass_temp']['people']=message.text
-    data['users'][uid]['state']="pass_date"
+async def pass_people(message: types.Message):
+    uid = str(message.from_user.id)
+    data['users'][uid]['pass_temp']['people'] = message.text
+    data['users'][uid]['state'] = "pass_date"
     save_json(DATA_FILE, data)
-    kb=ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("06:00","09:00","12:00","15:00","18:00","21:00","◀️ Orqaga")
+
+    # 24 soatlik klaviatura
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    for h in range(24):
+        kb.add(f"{h:02d}:00")
+    kb.add("◀️ Orqaga")  # orqaga tugma
+
     await message.answer("Qachonga?", reply_markup=kb)
+
 
 @dp.message_handler(lambda m: data['users'].get(str(m.from_user.id),{}).get('state')=="pass_date")
 async def pass_date(message):
