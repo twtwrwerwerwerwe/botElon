@@ -10,7 +10,7 @@ from aiogram.utils import executor
 # ---------------- CONFIG ----------------
 TOKEN = "8212255968:AAETRL91puhUESsCP7eFKm7pE51tKgm6SQo"
 ADMINS = [6302873072, 6731395876]
-BOT_USERNAME = "RishtonBuvaydaBogdod_bot"
+BOT_USERNAME = "@RishtonBuvaydaBogdod_bot"
 
 DRIVER_CHANNELS = [-1003292352387]
 PASSENGER_CHANNELS = [-1003443552869]
