@@ -217,7 +217,7 @@ async def driver_loop():
             for ch in DRIVER_CHANNELS:
                 try:
                     kb = InlineKeyboardMarkup()
-                    kb.add(InlineKeyboardButton("📩 Zakaz berish", url=f"https://t.me/{BOT_USERNAME}?start=zakaz"))
+                    kb.add(InlineKeyboardButton("📩 Zakaz berish", url=f"https://t.me/dkjashdkjhas3dhkjas_bot?start=zakaz"))
                     await bot.send_photo(ch, ad['photo'], caption=ad['text'], reply_markup=kb)
                 except:
                     pass
