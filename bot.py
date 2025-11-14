@@ -335,9 +335,6 @@ async def pass_phone(message):
 
 # ---------------- START BOT ----------------
 if __name__ == "__main__":
-    import asyncio
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(bot.delete_webhook())  # eski webhookni o‘chirish
-    loop.create_task(driver_loop())               # haydovchi loop-ni ishga tushirish
-    executor.start_polling(dp, skip_updates=True) # botni polling bilan ishga tushirish
-
+    loop.create_task(driver_loop())
+    executor.start_polling(dp, skip_updates=True)
