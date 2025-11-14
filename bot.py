@@ -9,12 +9,12 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMar
 from aiogram.utils import executor
 
 # ---------------- CONFIG ----------------
-TOKEN = "7956811170:AAE4mvrwmaxhgCr_cpq-U5s8DpgUyqXvAoA"
-ADMIN_ID = 6302873072
-BOT_USERNAME = "dkjashdkjhas3dhkjas_bot"
+TOKEN = "8285781260:AAE3Oq6ZyCrPHeaSvMJjZiV7Q3xChHEMlVc"
+ADMINS = [6302873072, 6731395876]
+BOT_USERNAME = "elonchiBot_bot"
 
-DRIVER_CHANNELS = [-5063643704]
-PASSENGER_CHANNELS = [-5078793194]
+DRIVER_CHANNELS = [-1003292352387]
+PASSENGER_CHANNELS = [-1003443552869]
 
 DATA_FILE = Path("data.json")
 ADS_FILE  = Path("ads.json")
@@ -91,25 +91,30 @@ async def passenger_section(message: types.Message):
     kb.add("📝 E’lon berish", "◀️ Orqaga")
     await message.answer("Yo‘lovchi bo‘limi:", reply_markup=kb)
 
-# ---------------- HAYDOVCHI ARIZA ----------------
 @dp.message_handler(lambda m: m.text == "📨 Haydovchi bo‘lish uchun ariza yuborish")
 async def driver_apply(message: types.Message):
     uid = str(message.from_user.id)
     u = data['users'].get(uid)
     if not u or u['driver_status'] != "none":
         return await message.answer("Siz allaqachon ariza yuborgansiz.")
+
     data['users'][uid]['driver_status'] = "pending"
     save_json(DATA_FILE, data)
+
     kb = InlineKeyboardMarkup()
     kb.add(
         InlineKeyboardButton("✅ Tasdiqlash", callback_data=f"drv_ok:{uid}"),
         InlineKeyboardButton("❌ Rad etish", callback_data=f"drv_no:{uid}")
     )
-    await bot.send_message(
-        ADMIN_ID,
-        f"🚘 Haydovchilik uchun ariza:\n👤 <b>{message.from_user.full_name}</b>\n🆔 <code>{uid}</code>",
-        reply_markup=kb
-    )
+
+    # Har bir adminga yuborish
+    for admin_id in ADMINS:
+        await bot.send_message(
+            admin_id,
+            f"🚘 Haydovchilik uchun ariza:\n👤 <b>{message.from_user.full_name}</b>\n🆔 <code>{uid}</code>",
+            reply_markup=kb
+        )
+
     await message.answer("Arizangiz adminga yuborildi! ⏳ Kuting.")
 
 # ---------------- ADMIN HAYDOVCHI TASDIQLASH ----------------
