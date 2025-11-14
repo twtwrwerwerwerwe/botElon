@@ -9,12 +9,12 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMar
 from aiogram.utils import executor
 
 # ---------------- CONFIG ----------------
-TOKEN = "8285781260:AAE3Oq6ZyCrPHeaSvMJjZiV7Q3xChHEMlVc"
-ADMIN_ID = 6302873072, 
-BOT_USERNAME = "elonchiBot_bot"
+TOKEN = "7956811170:AAE4mvrwmaxhgCr_cpq-U5s8DpgUyqXvAoA"
+ADMIN_ID = 6302873072
+BOT_USERNAME = "dkjashdkjhas3dhkjas_bot"
 
-DRIVER_CHANNELS = [-1003292352387]
-PASSENGER_CHANNELS = [-1003443552869]
+DRIVER_CHANNELS = [-5063643704]
+PASSENGER_CHANNELS = [-5078793194]
 
 DATA_FILE = Path("data.json")
 ADS_FILE  = Path("ads.json")
@@ -335,8 +335,6 @@ async def pass_phone(message):
 
 # ---------------- START BOT ----------------
 if __name__ == "__main__":
-    import asyncio
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(bot.delete_webhook())  # webhookni o‘chirish
     loop.create_task(driver_loop())
     executor.start_polling(dp, skip_updates=True)
