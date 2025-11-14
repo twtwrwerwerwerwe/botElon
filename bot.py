@@ -322,12 +322,12 @@ async def pass_phone(message):
     data['users'][uid]['state']=None
     save_json(DATA_FILE, data)
     text = (
-        f"🚖 <b>Yo‘lovchi e’loni:</b>\n"
-        f"📍 <b>Yo‘nalish:</b> {t['route']}\n"
-        f"👥 <b>Odamlar soni:</b> {t['people']}\n"
-        f"🕒 <b>Vaqt:</b> {t['time']}\n"
-        f"📞 <b>Telefon:</b> {t['phone']}"
-    )
+    f"🚖 <b>Yo‘lovchi e’loni:</b>\n\n"
+    f"📍 <b>Yo‘nalish:</b> {t['route']}\n\n"
+    f"👥 <b>Odamlar soni:</b> {t['people']}\n\n"
+    f"🕒 <b>Vaqt:</b> {t['time']}\n\n"
+    f"📞 <b>Telefon:</b> {t['phone']}\n"
+)
     for ch in PASSENGER_CHANNELS:
         try: await bot.send_message(ch,text, parse_mode="HTML")
         except: pass
