@@ -1,5 +1,4 @@
-# taxi_bot_final.py
-# Aiogram 2.x taxi bot — haydovchi va yo‘lovchi e’lonlari bilan
+# taxi_bot_final_fixed.py
 import asyncio
 import json
 import time
@@ -10,14 +9,14 @@ from aiogram.utils import executor
 
 # ---------------- CONFIG ----------------
 TOKEN = "8212255968:AAETRL91puhUESsCP7eFKm7pE51tKgm6SQo"
-ADMIN_ID = 6302873072
+ADMINS = [6302873072, 6731395876]
 BOT_USERNAME = "RishtonBuvaydaBogdod_bot"
 
 DRIVER_CHANNELS = [-1003292352387]
 PASSENGER_CHANNELS = [-1003443552869]
 
 DATA_FILE = Path("data.json")
-ADS_FILE  = Path("ads.json")
+ADS_FILE = Path("ads.json")
 
 # ---------------- JSON HELPERS ----------------
 def load_json(path, default):
@@ -38,14 +37,14 @@ def save_json(path, data):
 
 # ---------------- INIT FILES ----------------
 if not DATA_FILE.exists(): save_json(DATA_FILE, {"users":{}})
-if not ADS_FILE.exists():  save_json(ADS_FILE, {"driver":{}, "passenger":{}})
+if not ADS_FILE.exists(): save_json(ADS_FILE, {"driver":{}, "passenger":{}})
 
 # ---------------- BOT ----------------
 bot = Bot(TOKEN, parse_mode="HTML")
-dp  = Dispatcher(bot)
+dp = Dispatcher(bot)
 
 data = load_json(DATA_FILE, {"users":{}})
-ads  = load_json(ADS_FILE, {"driver":{}, "passenger":{}})
+ads = load_json(ADS_FILE, {"driver":{}, "passenger":{}})
 
 # ---------------- KEYBOARDS ----------------
 def main_menu():
@@ -63,7 +62,13 @@ def back_btn():
 async def start_cmd(message: types.Message):
     uid = str(message.from_user.id)
     if uid not in data['users']:
-        data['users'][uid] = {"role":None, "driver_status":"none", "state":None, "driver_temp":{}, "pass_temp":{}}
+        data['users'][uid] = {
+            "role": None,
+            "driver_status": "none",
+            "state": None,
+            "driver_temp": {},
+            "pass_temp": {}
+        }
         save_json(DATA_FILE, data)
     await message.answer("<b>Salom!</b> Siz kimsiz? Tanlang:", reply_markup=main_menu())
 
@@ -71,7 +76,7 @@ async def start_cmd(message: types.Message):
 @dp.message_handler(lambda m: m.text == "🚘 Haydovchi")
 async def driver_section(message: types.Message):
     uid = str(message.from_user.id)
-    u  = data['users'].get(uid, {"driver_status":"none"})
+    u = data['users'].get(uid, {"driver_status": "none"})
     if u['driver_status'] == "none":
         kb = ReplyKeyboardMarkup(resize_keyboard=True)
         kb.add("📨 Haydovchi bo‘lish uchun ariza yuborish", "◀️ Orqaga")
@@ -80,6 +85,7 @@ async def driver_section(message: types.Message):
         return await message.answer("⏳ Arizangiz admin tomonidan ko‘rib chiqilmoqda…", reply_markup=back_btn())
     if u['driver_status'] == "rejected":
         return await message.answer("❌ Admin arizani rad etgan.", reply_markup=back_btn())
+    # Tasdiqlangan haydovchi
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("📣 E’lon berish", "⏸ To‘xtatish", "▶ Davom etish", "🆕 Yangi e’lon", "◀️ Orqaga")
     await message.answer("Haydovchi bo‘limi:", reply_markup=kb)
@@ -97,7 +103,7 @@ async def driver_apply(message: types.Message):
     uid = str(message.from_user.id)
     u = data['users'].get(uid)
     if not u or u['driver_status'] != "none":
-        return await message.answer("Siz allaqachon ariza yuborgansiz.")
+        return await message.answer("Siz allaqachon ariza yuborgansiz yoki admin tasdiqlagan.")
     data['users'][uid]['driver_status'] = "pending"
     save_json(DATA_FILE, data)
     kb = InlineKeyboardMarkup()
@@ -105,11 +111,11 @@ async def driver_apply(message: types.Message):
         InlineKeyboardButton("✅ Tasdiqlash", callback_data=f"drv_ok:{uid}"),
         InlineKeyboardButton("❌ Rad etish", callback_data=f"drv_no:{uid}")
     )
-    await bot.send_message(
-        ADMIN_ID,
-        f"🚘 Haydovchilik uchun ariza:\n👤 <b>{message.from_user.full_name}</b>\n🆔 <code>{uid}</code>",
-        reply_markup=kb
-    )
+    for admin in ADMINS:
+        await bot.send_message(admin,
+            f"🚘 Haydovchilik uchun ariza:\n👤 <b>{message.from_user.full_name}</b>\n🆔 <code>{uid}</code>",
+            reply_markup=kb
+        )
     await message.answer("Arizangiz adminga yuborildi! ⏳ Kuting.")
 
 # ---------------- ADMIN HAYDOVCHI TASDIQLASH ----------------
@@ -124,7 +130,6 @@ async def admin_driver_action(call: types.CallbackQuery):
         data['users'][uid]['driver_status'] = "rejected"
         save_json(DATA_FILE, data)
         await bot.send_message(uid, "❌ Admin arizani rad etdi.")
-    # Har doim asosiy menyuga qaytadi
     await bot.send_message(uid, "Asosiy menyuga qayting:", reply_markup=main_menu())
     await call.message.edit_text("✅ Amal bajarildi")
 
@@ -132,12 +137,15 @@ async def admin_driver_action(call: types.CallbackQuery):
 @dp.message_handler(lambda m: m.text == "📣 E’lon berish")
 async def driver_new_ad(message: types.Message):
     uid = str(message.from_user.id)
+    if data['users'][uid]['driver_status'] != "approved":
+        return await message.answer("❌ Siz hali haydovchi emassiz yoki admin arizani tasdiqlamagan.")
     data['users'][uid]['state'] = "driver_text"
     data['users'][uid]['driver_temp'] = {}
     save_json(DATA_FILE, data)
     await message.answer("✍️ E’lon matnini yuboring:", reply_markup=back_btn())
 
-@dp.message_handler(lambda m: data['users'].get(str(m.from_user.id), {}).get('state')=="driver_text")
+# ---------------- DRIVER HANDLERS ----------------
+@dp.message_handler(lambda m: data['users'].get(str(m.from_user.id), {}).get('state') == "driver_text")
 async def driver_get_text(message: types.Message):
     uid = str(message.from_user.id)
     data['users'][uid]['driver_temp']['text'] = message.text
@@ -156,7 +164,7 @@ async def driver_get_photo(message: types.Message):
     save_json(DATA_FILE, data)
     await message.answer("⏱ Necha daqiqada qayta yuborilsin? (masalan: 1)")
 
-@dp.message_handler(lambda m: data['users'].get(str(m.from_user.id), {}).get('state')=="driver_interval")
+@dp.message_handler(lambda m: data['users'].get(str(m.from_user.id), {}).get('state') == "driver_interval")
 async def driver_get_interval(message: types.Message):
     uid = str(message.from_user.id)
     try: interval = int(message.text)
@@ -168,7 +176,7 @@ async def driver_get_interval(message: types.Message):
     kb.add("✅ Tasdiqlash", "🗑 Tozalash", "◀️ Orqaga")
     await message.answer("Hammasi tayyor. Tasdiqlaysizmi?", reply_markup=kb)
 
-@dp.message_handler(lambda m: m.text=="🗑 Tozalash")
+@dp.message_handler(lambda m: m.text == "🗑 Tozalash")
 async def driver_clear(message: types.Message):
     uid = str(message.from_user.id)
     data['users'][uid]['driver_temp'] = {}
@@ -176,7 +184,7 @@ async def driver_clear(message: types.Message):
     save_json(DATA_FILE, data)
     await message.answer("Tozalandi!", reply_markup=main_menu())
 
-@dp.message_handler(lambda m: m.text=="✅ Tasdiqlash")
+@dp.message_handler(lambda m: m.text == "✅ Tasdiqlash")
 async def driver_confirm(message: types.Message):
     uid = str(message.from_user.id)
     u = data['users'][uid]['driver_temp']
@@ -185,7 +193,7 @@ async def driver_confirm(message: types.Message):
         "user": uid,
         "text": u['text'],
         "photo": u['photo'],
-        "interval": max(0.1, u['interval']),  # minimal tezlik
+        "interval": max(0.1, u['interval']),
         "start": time.time(),
         "active": True
     }
@@ -200,7 +208,8 @@ async def driver_loop():
     while True:
         now = time.time()
         for ad_id, ad in list(ads['driver'].items()):
-            if not ad.get('active', False): continue
+            if not ad.get('active', False):
+                continue
             if now - ad['start'] > 86400:
                 ads['driver'][ad_id]['active'] = False
                 save_json(ADS_FILE, ads)
@@ -210,34 +219,35 @@ async def driver_loop():
                     kb = InlineKeyboardMarkup()
                     kb.add(InlineKeyboardButton("📩 Zakaz berish", url=f"https://t.me/{BOT_USERNAME}"))
                     await bot.send_photo(ch, ad['photo'], caption=ad['text'], reply_markup=kb)
-                except: pass
-            await asyncio.sleep(ad['interval']*60)
+                except:
+                    pass
+            await asyncio.sleep(ad['interval'] * 60)
         await asyncio.sleep(2)
 
 # ---------------- PAUSE / RESUME ----------------
-@dp.message_handler(lambda m: m.text=="⏸ To‘xtatish")
+@dp.message_handler(lambda m: m.text == "⏸ To‘xtatish")
 async def pause_driver(message: types.Message):
     uid = str(message.from_user.id)
     for ad in ads['driver'].values():
-        if ad['user']==uid: ad['active']=False
+        if ad['user'] == uid: ad['active'] = False
     save_json(ADS_FILE, ads)
     await message.answer("⏸ Pauza qilindi.", reply_markup=main_menu())
 
-@dp.message_handler(lambda m: m.text=="▶ Davom etish")
+@dp.message_handler(lambda m: m.text == "▶ Davom etish")
 async def resume_driver(message: types.Message):
     uid = str(message.from_user.id)
     for ad in ads['driver'].values():
-        if ad['user']==uid:
-            ad['active']=True
-            ad['start']=time.time()
+        if ad['user'] == uid:
+            ad['active'] = True
+            ad['start'] = time.time()
     save_json(ADS_FILE, ads)
     await message.answer("▶ Davom ettirildi.", reply_markup=main_menu())
 
-@dp.message_handler(lambda m: m.text=="🆕 Yangi e’lon")
+@dp.message_handler(lambda m: m.text == "🆕 Yangi e’lon")
 async def new_driver_ad(message: types.Message):
     return await driver_new_ad(message)
 
-# ---------------- YOLOVCHI ----------------
+# ---------------- YOLOVCHI SECTION ----------------
 PASS_ROUTES = [
     "🚗 Qo‘qon → Toshkent", "🚗 Toshkent → Qo‘qon",
     "🚗 Rishton → Toshkent", "🚗 Toshkent → Rishton",
@@ -247,89 +257,85 @@ PASS_ROUTES = [
     "🚗 Bag‘dod → Toshkent", "🚗 Toshkent → Bag‘dod"
 ]
 
-@dp.message_handler(lambda m: m.text=="📝 E’lon berish")
+@dp.message_handler(lambda m: m.text == "📝 E’lon berish")
 async def passenger_ad(message: types.Message):
     uid = str(message.from_user.id)
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     for r in PASS_ROUTES: kb.add(r)
-    kb.add("🔤 Boshqa")
-    kb.add("◀️ Orqaga")
-    data['users'][uid]['state']="pass_route"
+    kb.add("🔤 Boshqa", "◀️ Orqaga")
+    data['users'][uid]['state'] = "pass_route"
     save_json(DATA_FILE, data)
     await message.answer("Yo‘nalishni tanlang:", reply_markup=kb)
 
 # ---------------- YOLOVCHI HANDLERS ----------------
-@dp.message_handler(lambda m: data['users'].get(str(m.from_user.id),{}).get('state')=="pass_route")
-async def pass_get_route(message):
-    uid=str(message.from_user.id)
-    if message.text=="🔤 Boshqa":
-        data['users'][uid]['state']="pass_route_custom"
+@dp.message_handler(lambda m: data['users'].get(str(m.from_user.id), {}).get('state') == "pass_route")
+async def pass_get_route(message: types.Message):
+    uid = str(message.from_user.id)
+    if message.text == "🔤 Boshqa":
+        data['users'][uid]['state'] = "pass_route_custom"
         save_json(DATA_FILE, data)
         return await message.answer("Yo‘nalishni yozing:")
     if message.text not in PASS_ROUTES:
         return await message.answer("Ro‘yxatdan tanlang yoki Boshqani bosing.")
-    data['users'][uid]['pass_temp']={"route":message.text}
-    data['users'][uid]['state']="pass_people"
+    data['users'][uid]['pass_temp'] = {"route": message.text}
+    data['users'][uid]['state'] = "pass_people"
     save_json(DATA_FILE, data)
-    kb=ReplyKeyboardMarkup(resize_keyboard=True)
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("1 kishi","2 kishi","3 kishi","4 kishi","📦 Pochta","◀️ Orqaga")
     await message.answer("Necha kishisiz?", reply_markup=kb)
 
-@dp.message_handler(lambda m: data['users'].get(str(m.from_user.id),{}).get('state')=="pass_route_custom")
-async def pass_custom(message):
-    uid=str(message.from_user.id)
-    data['users'][uid]['pass_temp']={"route":message.text}
-    data['users'][uid]['state']="pass_people"
+@dp.message_handler(lambda m: data['users'].get(str(m.from_user.id), {}).get('state') == "pass_route_custom")
+async def pass_custom(message: types.Message):
+    uid = str(message.from_user.id)
+    data['users'][uid]['pass_temp'] = {"route": message.text}
+    data['users'][uid]['state'] = "pass_people"
     save_json(DATA_FILE, data)
-    kb=ReplyKeyboardMarkup(resize_keyboard=True)
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("1 kishi","2 kishi","3 kishi","4 kishi","📦 Pochta","◀️ Orqaga")
     await message.answer("Necha kishisiz?", reply_markup=kb)
 
-@dp.message_handler(lambda m: data['users'].get(str(m.from_user.id),{}).get('state')=="pass_people")
+@dp.message_handler(lambda m: data['users'].get(str(m.from_user.id), {}).get('state') == "pass_people")
 async def pass_people(message: types.Message):
     uid = str(message.from_user.id)
     data['users'][uid]['pass_temp']['people'] = message.text
     data['users'][uid]['state'] = "pass_date"
     save_json(DATA_FILE, data)
 
-    # 24 soatlik klaviatura
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     for h in range(24):
         kb.add(f"{h:02d}:00")
-    kb.add("◀️ Orqaga")  # orqaga tugma
-
+    kb.add("◀️ Orqaga")
     await message.answer("Qachonga?", reply_markup=kb)
 
-
-@dp.message_handler(lambda m: data['users'].get(str(m.from_user.id),{}).get('state')=="pass_date")
-async def pass_date(message):
-    uid=str(message.from_user.id)
-    data['users'][uid]['pass_temp']['time']=message.text
-    data['users'][uid]['state']="pass_phone"
+@dp.message_handler(lambda m: data['users'].get(str(m.from_user.id), {}).get('state') == "pass_date")
+async def pass_date(message: types.Message):
+    uid = str(message.from_user.id)
+    data['users'][uid]['pass_temp']['time'] = message.text
+    data['users'][uid]['state'] = "pass_phone"
     save_json(DATA_FILE, data)
     await message.answer("📞 Telefon raqamingizni kiriting (+998901234567):", reply_markup=back_btn())
 
-@dp.message_handler(lambda m: data['users'].get(str(m.from_user.id),{}).get('state')=="pass_phone")
-async def pass_phone(message):
-    uid=str(message.from_user.id)
-    t=data['users'][uid]['pass_temp']
+@dp.message_handler(lambda m: data['users'].get(str(m.from_user.id), {}).get('state') == "pass_phone")
+async def pass_phone(message: types.Message):
+    uid = str(message.from_user.id)
+    t = data['users'][uid]['pass_temp']
     if not message.text.startswith("+"): return await message.answer("Raqam + bilan boshlansin!")
-    t['phone']=message.text
-    ad_id=str(time.time()).replace('.','')
-    ads['passenger'][ad_id]=t
+    t['phone'] = message.text
+    ad_id = str(time.time()).replace('.', '')
+    ads['passenger'][ad_id] = t
     save_json(ADS_FILE, ads)
-    data['users'][uid]['pass_temp']={}
-    data['users'][uid]['state']=None
+    data['users'][uid]['pass_temp'] = {}
+    data['users'][uid]['state'] = None
     save_json(DATA_FILE, data)
     text = (
-    f"🚖 <b>Yo‘lovchi e’loni:</b>\n\n"
-    f"📍 <b>Yo‘nalish:</b> {t['route']}\n\n"
-    f"👥 <b>Odamlar soni:</b> {t['people']}\n\n"
-    f"🕒 <b>Vaqt:</b> {t['time']}\n\n"
-    f"📞 <b>Telefon:</b> {t['phone']}\n"
-)
+        f"🚖 <b>Yo‘lovchi e’loni:</b>\n\n"
+        f"📍 <b>Yo‘nalish:</b> {t['route']}\n\n"
+        f"👥 <b>Odamlar soni:</b> {t['people']}\n\n"
+        f"🕒 <b>Vaqt:</b> {t['time']}\n\n"
+        f"📞 <b>Telefon:</b> {t['phone']}\n"
+    )
     for ch in PASSENGER_CHANNELS:
-        try: await bot.send_message(ch,text, parse_mode="HTML")
+        try: await bot.send_message(ch, text, parse_mode="HTML")
         except: pass
     await message.answer("E’lon yuborildi!", reply_markup=main_menu())
 
