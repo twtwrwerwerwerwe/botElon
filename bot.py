@@ -11,7 +11,7 @@ from aiogram.utils import executor
 # ---------------- CONFIG ----------------
 TOKEN = "8212255968:AAETRL91puhUESsCP7eFKm7pE51tKgm6SQo"
 ADMIN_ID = 6302873072
-BOT_USERNAME = "https://t.me/RishtonBuvaydaBogdod_bot"
+BOT_USERNAME = "RishtonBuvaydaBogdod_bot"
 
 DRIVER_CHANNELS = [-1003292352387]
 PASSENGER_CHANNELS = [-1003443552869]
