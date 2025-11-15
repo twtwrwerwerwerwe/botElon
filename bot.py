@@ -37,8 +37,10 @@ def save_json(path, data):
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 # ---------------- INIT FILES ----------------
-if not DATA_FILE.exists(): save_json(DATA_FILE, {"users":{}})
-if not ADS_FILE.exists(): save_json(ADS_FILE, {"driver":{}, "passenger":{}})
+if not DATA_FILE.exists():
+    save_json(DATA_FILE, {"users":{}})
+if not ADS_FILE.exists():
+    save_json(ADS_FILE, {"driver":{}, "passenger":{}})
 
 # ---------------- BOT ----------------
 bot = Bot(TOKEN, parse_mode="HTML")
@@ -73,6 +75,7 @@ async def start_cmd(message: types.Message):
         data['users'][uid] = {
             "role": None,
             "driver_status": "none",
+            "driver_paused": False,
             "state": None,
             "driver_temp": {},
             "pass_temp": {}
@@ -84,6 +87,29 @@ async def start_cmd(message: types.Message):
 @dp.message_handler(lambda m: m.text == "🚘 Haydovchi")
 async def driver_section(message: types.Message):
     uid = str(message.from_user.id)
+
+    # Agar foydalanuvchi ma'lumotlari yo'q bo'lsa yarating (xavfsizlik uchun)
+    if uid not in data['users']:
+        data['users'][uid] = {
+            "role": None,
+            "driver_status": "none",
+            "driver_paused": False,
+            "state": None,
+            "driver_temp": {},
+            "pass_temp": {}
+        }
+
+    # Agar user admin bo'lsa — avtomatik tasdiqlangan haydovchi qilib qo'yamiz
+    if int(uid) in ADMINS or int(message.from_user.id) in ADMINS:
+        # agar hali approved bo'lmasa — approved qilamiz
+        if data['users'][uid].get('driver_status') != "approved":
+            data['users'][uid]['driver_status'] = "approved"
+            # default: pauza o'chirilgan bo'lsin
+            data['users'][uid]['driver_paused'] = False
+            save_json(DATA_FILE, data)
+        # bevosita haydovchi bo'limiga kirishi uchun xabar
+        return await message.answer("Haydovchi bo‘limi (admin):", reply_markup=driver_main_kb())
+
     u = data['users'].get(uid, {"driver_status": "none"})
     if u['driver_status'] == "none":
         kb = ReplyKeyboardMarkup(resize_keyboard=True)
@@ -99,6 +125,17 @@ async def driver_section(message: types.Message):
 # ---------------- YOLOVCHI SECTION ----------------
 @dp.message_handler(lambda m: m.text == "🧍 Yo‘lovchi")
 async def passenger_section(message: types.Message):
+    uid = str(message.from_user.id)
+    if uid not in data['users']:
+        data['users'][uid] = {
+            "role": None,
+            "driver_status": "none",
+            "driver_paused": False,
+            "state": None,
+            "driver_temp": {},
+            "pass_temp": {}
+        }
+        save_json(DATA_FILE, data)
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("📝 E’lon berish", "◀️ Orqaga")
     await message.answer("Yo‘lovchi bo‘limi:", reply_markup=kb)
@@ -111,6 +148,7 @@ async def driver_apply(message: types.Message):
     if not u or u['driver_status'] != "none":
         return await message.answer("Siz allaqachon ariza yuborgansiz yoki admin tasdiqlagan.")
     data['users'][uid]['driver_status'] = "pending"
+    data['users'][uid]['driver_paused'] = False
     save_json(DATA_FILE, data)
     kb = InlineKeyboardMarkup()
     kb.add(
@@ -134,6 +172,7 @@ async def admin_driver_action(call: types.CallbackQuery):
     if action == "drv_ok":
         # tasdiqlash
         data['users'][uid]['driver_status'] = "approved"
+        data['users'][uid]['driver_paused'] = False
         save_json(DATA_FILE, data)
 
         # aktiv hisoblangan haydovchi bor bo'lsa — shu haydovchiga tegishli e'lonlarni yoqish va darhol yuborish
@@ -160,7 +199,7 @@ async def admin_driver_action(call: types.CallbackQuery):
                     try:
                         kb = InlineKeyboardMarkup()
                         bot_username_for_url = BOT_USERNAME.lstrip('@')
-                        kb.add(InlineKeyboardButton("📩 Zakaz berish", url=f"https://t.me/{bot_username_for_url}?start=zakaz"))
+                        kb.add(InlineKeyboardButton("📩 Zakaz berish", url=f"https://t.me/RishtonBuvaydaBogdod_bot?start=zakaz"))
                         # Agar rasm id mavjud bo'lsa foto yuboramiz, aks holda text
                         if ad.get('photo'):
                             await bot.send_photo(ch, ad['photo'], caption=ad.get('text', ''), reply_markup=kb)
@@ -174,6 +213,7 @@ async def admin_driver_action(call: types.CallbackQuery):
     else:
         # rad etish
         data['users'][uid]['driver_status'] = "rejected"
+        data['users'][uid]['driver_paused'] = False
         save_json(DATA_FILE, data)
         try:
             await bot.send_message(uid, "❌ Admin arizani rad etdi.", reply_markup=main_menu())
@@ -194,6 +234,8 @@ async def driver_new_ad(message: types.Message):
         return await message.answer("❌ Siz hali haydovchi emassiz yoki admin arizani tasdiqlamagan.", reply_markup=back_btn())
     data['users'][uid]['state'] = "driver_text"
     data['users'][uid]['driver_temp'] = {}
+    # e'lon yaratishda avtomatik pauza o'chirilgan bo'lsin
+    data['users'][uid]['driver_paused'] = False
     save_json(DATA_FILE, data)
     await message.answer("✍️ E’lon matnini yuboring:", reply_markup=back_btn())
 
@@ -261,6 +303,8 @@ async def driver_confirm(message: types.Message):
 
     data['users'][uid]['driver_temp'] = {}
     data['users'][uid]['state'] = None
+    # e'lon yaratishda pauza false bo'lsin
+    data['users'][uid]['driver_paused'] = False
     save_json(DATA_FILE, data)
 
     # xabar: e'lon yuborish boshlandi va minimal tugmalar (To'xtatish, Yangi e'lon, Orqaga)
@@ -271,6 +315,7 @@ async def driver_loop():
     """
     Har bir ad uchun last_sent soatiga qarab yuborishni boshqaradi.
     Bu usul tufayli bir ad yuborilgach, boshqa adlar bloklanib qolmaydi.
+    Qo'shimcha: foydalanuvchi pauza qilgan bo'lsa (driver_paused) ad yuborilmaydi darhol.
     """
     while True:
         now = time.time()
@@ -284,6 +329,12 @@ async def driver_loop():
                     ads['driver'][ad_id]['active'] = False
                     changed = True
                     continue
+
+                # agar foydalanuvchi pauza holatida bo'lsa — yubormaymiz
+                user_uid = ad.get('user')
+                if user_uid and data['users'].get(user_uid, {}).get('driver_paused', False):
+                    continue
+
                 interval_seconds = ad.get('interval', 1) * 60
                 last = ad.get('last_sent', 0)
                 # agar hech qachon yuborilmagan yoki interval o'tgan bo'lsa — yuborish
@@ -315,16 +366,29 @@ async def driver_loop():
 async def pause_driver(message: types.Message):
     uid = str(message.from_user.id)
     any_changed = False
+
+    # 1) Mark user as paused in data (immediate effect in loop)
+    if uid in data['users']:
+        data['users'][uid]['driver_paused'] = True
+        save_json(DATA_FILE, data)
+
+    # 2) Also mark any active ads of this user as inactive (defensive)
     for ad in ads['driver'].values():
         if ad.get('user') == uid and ad.get('active', False):
             ad['active'] = False
             any_changed = True
     if any_changed:
         save_json(ADS_FILE, ads)
+
     await message.answer("⏸ Pauza qilindi.", reply_markup=main_menu())
 
 @dp.message_handler(lambda m: m.text == "🆕 Yangi e’lon")
 async def new_driver_ad(message: types.Message):
+    # yangi e'lon bosilganda pauzani avtomatik o'chirish (foydalanuvchi e'lonni yana boshlamoqchi)
+    uid = str(message.from_user.id)
+    if uid in data['users']:
+        data['users'][uid]['driver_paused'] = False
+        save_json(DATA_FILE, data)
     return await driver_new_ad(message)
 
 # ---------------- YOLOVCHI SECTION ----------------
@@ -340,8 +404,19 @@ PASS_ROUTES = [
 @dp.message_handler(lambda m: m.text == "📝 E’lon berish")
 async def passenger_ad(message: types.Message):
     uid = str(message.from_user.id)
+    if uid not in data['users']:
+        data['users'][uid] = {
+            "role": None,
+            "driver_status": "none",
+            "driver_paused": False,
+            "state": None,
+            "driver_temp": {},
+            "pass_temp": {}
+        }
+        save_json(DATA_FILE, data)
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    for r in PASS_ROUTES: kb.add(r)
+    for r in PASS_ROUTES:
+        kb.add(r)
     kb.add("🔤 Boshqa", "◀️ Orqaga")
     data['users'][uid]['state'] = "pass_route"
     save_json(DATA_FILE, data)
