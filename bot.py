@@ -14,7 +14,7 @@ BOT_USERNAME = "@RishtonBuvaydaBogdod_bot"
 
 # Bu yerga 1 yoki undan ortiq kanal id larini qo'yishingiz mumkin.
 DRIVER_CHANNELS = [-1003292352387, -1002558743974]
-PASSENGER_CHANNELS = [-1003443552869, -5054608516]
+PASSENGER_CHANNELS = [-1003443552869, -1002963614686]
 
 DATA_FILE = Path("data.json")
 ADS_FILE = Path("ads.json")
