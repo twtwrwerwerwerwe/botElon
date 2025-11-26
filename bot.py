@@ -83,9 +83,20 @@ async def start_cmd(message: types.Message):
             "driver_paused": False,
             "state": None,
             "driver_temp": {},
-            "pass_temp": {}
+            "pass_temp": {},
+            "full_name": message.from_user.full_name or "",
+            "username": message.from_user.username or ""
         }
         save_json(DATA_FILE, data)
+    else:
+        # update stored display info on each /start to keep names up-to-date
+        data['users'][uid].setdefault("full_name", message.from_user.full_name or "")
+        data['users'][uid].setdefault("username", message.from_user.username or "")
+        # also refresh with latest values
+        data['users'][uid]['full_name'] = message.from_user.full_name or data['users'][uid].get('full_name', '')
+        data['users'][uid]['username'] = message.from_user.username or data['users'][uid].get('username', '')
+        save_json(DATA_FILE, data)
+
     is_admin = int(message.from_user.id) in ADMINS
     await message.answer("<b>Salom!</b> Siz kimsiz? Tanlang:", reply_markup=main_menu(is_admin=is_admin))
 
@@ -102,8 +113,11 @@ async def driver_section(message: types.Message):
             "driver_paused": False,
             "state": None,
             "driver_temp": {},
-            "pass_temp": {}
+            "pass_temp": {},
+            "full_name": message.from_user.full_name or "",
+            "username": message.from_user.username or ""
         }
+        save_json(DATA_FILE, data)
 
     # Agar user admin bo'lsa — avtomatik tasdiqlangan haydovchi qilib qo'yamiz
     if int(uid) in ADMINS or int(message.from_user.id) in ADMINS:
@@ -124,7 +138,9 @@ async def driver_section(message: types.Message):
     if u['driver_status'] == "pending":
         return await message.answer("⏳ Arizangiz admin tomonidan ko‘rib chiqilmoqda…", reply_markup=back_btn())
     if u['driver_status'] == "rejected":
-        return await message.answer("❌ Admin arizani rad etgan.", reply_markup=back_btn())
+        kb = ReplyKeyboardMarkup(resize_keyboard=True)
+        kb.add("📨 Haydovchi bo‘lish uchun ariza yuborish", "◀️ Orqaga")
+        return await message.answer("❌ Admin arizani rad etgan. Yana ariza yuborishingiz mumkin.", reply_markup=kb)
     # Tasdiqlangan haydovchi
     await message.answer("Haydovchi bo‘limi:", reply_markup=driver_main_kb())
 
@@ -139,7 +155,9 @@ async def passenger_section(message: types.Message):
             "driver_paused": False,
             "state": None,
             "driver_temp": {},
-            "pass_temp": {}
+            "pass_temp": {},
+            "full_name": message.from_user.full_name or "",
+            "username": message.from_user.username or ""
         }
         save_json(DATA_FILE, data)
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
@@ -151,10 +169,38 @@ async def passenger_section(message: types.Message):
 async def driver_apply(message: types.Message):
     uid = str(message.from_user.id)
     u = data['users'].get(uid)
-    if not u or u['driver_status'] != "none":
-        return await message.answer("Siz allaqachon ariza yuborgansiz yoki admin tasdiqlagan.")
+    # Allow re-application if previously rejected or none. Block only if pending or already approved.
+    if u and u.get('driver_status') == "pending":
+        return await message.answer("Siz allaqachon ariza yuborgansiz. Iltimos kuting.", reply_markup=back_btn())
+    if u and u.get('driver_status') == "approved":
+        return await message.answer("Siz allaqachon tasdiqlangan haydovchisiz.", reply_markup=driver_main_kb())
+
+    # Ensure user record exists and update display info
+    if uid not in data['users']:
+        data['users'][uid] = {
+            "role": None,
+            "driver_status": "none",
+            "driver_paused": False,
+            "state": None,
+            "driver_temp": {},
+            "pass_temp": {},
+            "full_name": message.from_user.full_name or "",
+            "username": message.from_user.username or ""
+        }
+
+    # mark as pending
     data['users'][uid]['driver_status'] = "pending"
     data['users'][uid]['driver_paused'] = False
+    # Save display info in user root so admin list can always use it
+    data['users'][uid]['full_name'] = message.from_user.full_name or data['users'][uid].get('full_name', '')
+    data['users'][uid]['username'] = message.from_user.username or data['users'][uid].get('username', '')
+    # also keep a snapshot in driver_temp for later detailed info if needed
+    data['users'][uid].setdefault('driver_temp', {})
+    data['users'][uid]['driver_temp']['name'] = data['users'][uid]['full_name'] or data['users'][uid]['username'] or f"ID:{uid}"
+
+    # Before sending new admin notifications, clear old admin_notifs for this uid
+    data['admin_notifs'][uid] = []
+
     save_json(DATA_FILE, data)
 
     kb = InlineKeyboardMarkup()
@@ -163,12 +209,8 @@ async def driver_apply(message: types.Message):
         InlineKeyboardButton("❌ Rad etish", callback_data=f"drv_no:{uid}")
     )
 
-    # yuborilgan admin xabarlarini saqlaymiz
-    data['admin_notifs'].setdefault(uid, [])
-
     for admin in ADMINS:
         try:
-            # username bilan yuborish (agar bo'lsa)
             username = message.from_user.username
             if username:
                 username_display = f"@{username}"
@@ -180,6 +222,7 @@ async def driver_apply(message: types.Message):
                 reply_markup=kb
             )
             # saqlaymiz: admin va message_id
+            data['admin_notifs'].setdefault(uid, [])
             data['admin_notifs'][uid].append({"admin": admin, "msg_id": msg.message_id})
         except:
             pass
@@ -223,13 +266,14 @@ async def admin_driver_action(call: types.CallbackQuery):
             pass
 
         # darhol bir marotaba har bir e'lonni kanallarga yuborish (faollashtirilgan e'lonlar uchun)
+        # (eski ishlashni saqlab qolyapmiz)
         for ad_id, ad in list(ads['driver'].items()):
             if ad.get('user') == uid and ad.get('active', False):
                 for ch in DRIVER_CHANNELS:
                     try:
                         kb = InlineKeyboardMarkup()
                         bot_username_for_url = BOT_USERNAME.lstrip('@')
-                        kb.add(InlineKeyboardButton("📩 Zakaz berish", url=f"https://t.me/RishtonBuvaydaBogdod_bot?start=zakaz"))
+                        kb.add(InlineKeyboardButton("📩 Zakaz berish", url=f"https://t.me/{bot_username_for_url}?start=zakaz"))
                         if ad.get('photo'):
                             await bot.send_photo(ch, ad['photo'], caption=ad.get('text', ''), reply_markup=kb)
                         else:
@@ -258,7 +302,7 @@ async def admin_driver_action(call: types.CallbackQuery):
                 pass
 
         try:
-            await bot.send_message(uid, "❌ Admin arizani rad etdi.", reply_markup=main_menu())
+            await bot.send_message(uid, "❌ Admin arizani rad etdi. Agar xohlasangiz qayta ariza yuborishingiz mumkin.", reply_markup=main_menu())
         except:
             pass
 
@@ -268,27 +312,13 @@ async def admin_driver_action(call: types.CallbackQuery):
             await call.answer("Foydalanuvchi topilmadi.")
             return
         u = data['users'][uid]
-        # topilgan haydovchining ma'lumotlari
-        # iloji boricha username va phone agar mavjud bo'lsa ko'rsatamiz (phone ADS yoki users da hech qaerda saqlanmagan bo'lsa — bo'sh)
-        username = "—"
-        try:
-            # har doim mumkin emas, lekin admin_notifs orqali yoki avvalgi xabarlar orqali username ma'lumotini olish mumkin emas
-            # shuning uchun foydalanuvchi oxirgi murojaatlaridan topishning oddiy usuli yo'q; lekin biz users ichidagi ma'lumotlar bo'lsa ko'rsatamiz.
-            # agar foydalanuvchi @username bilan ro'yxatda bo'lsa ularni avval saqlamaganmiz, lekin driver_apply paytida adminlarga ko'rsatgandik.
-            # Shunchaki username olinmasa — "—"
-            pass
-        except:
-            pass
-        # to'liq matn tayyorlash
-        txt = f"🚘 <b>Haydovchi ma'lumotlari:</b>\n\n👤 <b>Ism:</b> {data['users'][uid].get('driver_temp', {}).get('name', '—')}\n🆔 <code>{uid}</code>\n\n"
-        # Ko'proq ma'lumot sifatida admin_notifs dagi xabarlardan username ko'rsatish imkoni mavjud (hamma holatda emas)
-        # Biz adminlarga oldindan yuborilgan xabarlarda username ko'rsatgandik, lekin users ichida saqlanmasa — "—"
-        # Shuning uchun qidiramiz: agar admin_notifs mavjud bo'lsa va xabar matnidan username olingan bo'lsa — yo'q, oddiy qilib:
+        # Topilgan haydovchining ma'lumotlari
+        display_name = u.get('full_name') or u.get('driver_temp', {}).get('name') or (("@" + u['username']) if u.get('username') else f"ID:{uid}")
         txt = (
             f"🚘 <b>Haydovchi ma'lumotlari:</b>\n\n"
-            f"👤 <b>Ism:</b> {data['users'][uid].get('driver_temp', {}).get('name', '—')}\n"
+            f"👤 <b>Ism:</b> {display_name}\n"
             f"🆔 <code>{uid}</code>\n\n"
-            f"📋 <i>Status:</i> {data['users'][uid].get('driver_status', '—')}\n"
+            f"📋 <i>Status:</i> {u.get('driver_status', '—')}\n"
         )
         # Tugmalar: chiqarib tashlash va qoldirish
         kb = InlineKeyboardMarkup()
@@ -340,7 +370,7 @@ async def admin_driver_action(call: types.CallbackQuery):
 @dp.message_handler(lambda m: m.text == "📣 E’lon berish")
 async def driver_new_ad(message: types.Message):
     uid = str(message.from_user.id)
-    if data['users'][uid]['driver_status'] != "approved":
+    if data['users'].get(uid, {}).get('driver_status') != "approved":
         return await message.answer("❌ Siz hali haydovchi emassiz yoki admin arizani tasdiqlamagan.", reply_markup=back_btn())
     data['users'][uid]['state'] = "driver_text"
     data['users'][uid]['driver_temp'] = {}
@@ -453,7 +483,7 @@ async def driver_loop():
                         try:
                             kb = InlineKeyboardMarkup()
                             bot_username_for_url = BOT_USERNAME.lstrip('@')
-                            kb.add(InlineKeyboardButton("📩 Zakaz berish", url=f"https://t.me/RishtonBuvaydaBogdod_bot?start=zakaz"))
+                            kb.add(InlineKeyboardButton("📩 Zakaz berish", url=f"https://t.me/{bot_username_for_url}?start=zakaz"))
                             if ad.get('photo'):
                                 await bot.send_photo(ch, ad['photo'], caption=ad.get('text', ''), reply_markup=kb)
                             else:
@@ -521,7 +551,9 @@ async def passenger_ad(message: types.Message):
             "driver_paused": False,
             "state": None,
             "driver_temp": {},
-            "pass_temp": {}
+            "pass_temp": {},
+            "full_name": message.from_user.full_name or "",
+            "username": message.from_user.username or ""
         }
         save_json(DATA_FILE, data)
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
@@ -623,13 +655,13 @@ async def admin_drivers_list(message: types.Message):
     if int(message.from_user.id) not in ADMINS:
         return await message.answer("Faqat adminlar uchun.")
     # barcha tasdiqlangan haydovchilarni topamiz
-    kb = ReplyKeyboardMarkup(resize_keyboard=True)
     inline = InlineKeyboardMarkup()
     found = False
     for uid, u in data['users'].items():
         if u.get('driver_status') == "approved":
-            # tugma sifatida ro'yxatga qo'shamiz
-            inline.add(InlineKeyboardButton(u.get('driver_temp', {}).get('name', u.get('driver_temp', {}).get('fullname', u.get('driver_temp', {}).get('full_name', u.get('full_name', 'NoName')) ) ) or u.get('driver_temp', {}).get('name', f"ID:{uid}"), callback_data=f"drv_view:{uid}"))
+            # display name logic: prefer stored full_name, then username, then driver_temp.name, then ID
+            display = u.get('full_name') or (("@" + u['username']) if u.get('username') else u.get('driver_temp', {}).get('name') or f"ID:{uid}")
+            inline.add(InlineKeyboardButton(display, callback_data=f"drv_view:{uid}"))
             found = True
     if not found:
         return await message.answer("Hozircha tasdiqlangan haydovchilar yo'q.")
