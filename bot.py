@@ -8,13 +8,13 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMar
 from aiogram.utils import executor
 
 # ---------------- CONFIG ----------------
-TOKEN = "8474009974:AAERXCF7Jj1Qv-QGixFGaFVIgnUZcoIJoPs"
-ADMINS = [6302873072]
-BOT_USERNAME = "@rishtonBogdodToshkentTaxi_bot"
+TOKEN = "8212255968:AAETRL91puhUESsCP7eFKm7pE51tKgm6SQo"
+ADMINS = [6302873072, 6731395876]
+BOT_USERNAME = "@RishtonBuvaydaBogdod_bot"
 
 # Bu yerga 1 yoki undan ortiq kanal id larini qo'yishingiz mumkin.
-DRIVER_CHANNELS = [-1003322681147]
-PASSENGER_CHANNELS = [-5014555610]
+DRIVER_CHANNELS = [-1003292352387, -1002558743974]
+PASSENGER_CHANNELS = [-1003443552869, -1002963614686]
 
 DATA_FILE = Path("data.json")
 ADS_FILE = Path("ads.json")
