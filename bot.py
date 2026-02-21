@@ -442,25 +442,52 @@ async def driver_clear(message: types.Message):
     await message.answer("Tozalandi!", reply_markup=main_menu())
 
 # Haydovchi e'lonini tasdiqlash
-@dp.callback_query_handler(lambda c: c.data.startswith("driver_confirm_"))
-async def driver_confirm(call: types.CallbackQuery):
-    ride_id = call.data.split("_")[-1]  # callback_data: driver_confirm_123
-    t = ads['driver'].get(ride_id)
-    if not t:
-        return await call.answer("E’lon topilmadi!", show_alert=True)
+# ---------------- DRIVER CONFIRM IMMEDIATE SEND ----------------
+@dp.message_handler(lambda m: m.text == "✅ Tasdiqlash")
+async def driver_confirm(message: types.Message):
+    uid = str(message.from_user.id)
+    u = data['users'][uid]['driver_temp']
 
-    # Admin tasdiqladi, e'lon yuborish boshlanadi
-    await call.message.answer("E’lon yuborish boshlandi ✅")
+    # ad yaratish
+    ad_id = str(time.time()).replace('.', '')
+    ads['driver'][ad_id] = {
+        "user": uid,
+        "text": u.get('text', ''),
+        "photo": u.get('photo'),
+        "interval": max(0.1, u.get('interval', 1)),
+        "start": time.time(),
+        "active": True,
+        "last_sent": 0
+    }
+    save_json(ADS_FILE, ads)
 
-    # E'lonni guruhga yuborish
-    short_info = f"{t['from']} ➡ {t['to']}, {t['date']} {t['time']}"
-    kb = InlineKeyboardMarkup()
-    kb.add(InlineKeyboardButton("📥 Korish", callback_data=f"view_ride_{ride_id}"))
+    # foydalanuvchi data ni tozalash
+    data['users'][uid]['driver_temp'] = {}
+    data['users'][uid]['state'] = None
+    data['users'][uid]['driver_paused'] = False
+    save_json(DATA_FILE, data)
 
-    for group_id in DRIVER_CHANNELS:  # DRIVER_CHANNELS oldingi guruhlar id listi
-        await bot.send_message(group_id, f"Yangi haydovchi e’loni:\n{short_info}", reply_markup=kb)
+    # --- E’lonni darhol guruhlarga yuborish ---
+    ad = ads['driver'][ad_id]
+    for ch in DRIVER_CHANNELS:
+        try:
+            kb = InlineKeyboardMarkup()
+            bot_username_for_url = BOT_USERNAME.lstrip('@')
+            kb.add(InlineKeyboardButton("📩 Zakaz berish", url=f"https://t.me/{bot_username_for_url}?start=zakaz"))
+            if ad.get('photo'):
+                await bot.send_photo(ch, ad['photo'], caption=ad.get('text', ''), reply_markup=kb)
+            else:
+                await bot.send_message(ch, ad.get('text', ''), reply_markup=kb)
+            ad['last_sent'] = time.time()
+        except:
+            pass
+    save_json(ADS_FILE, ads)
 
-    await call.answer()  # callback tugatildi
+    # foydalanuvchiga xabar
+    await message.answer(
+        "🚀 E’lon yuborish boshlandi! Endi guruhlarga e’lon ketdi.",
+        reply_markup=ReplyKeyboardMarkup(resize_keyboard=True).add("⏸ To‘xtatish", "🆕 Yangi e’lon").add("◀️ Orqaga")
+    )
 # ---------------- DRIVER LOOP ----------------
 async def driver_loop():
     """
