@@ -278,7 +278,8 @@ async def user_info(call: types.CallbackQuery):
             premium_until = datetime.fromisoformat(u.get('premium_until'))
             days_left = (premium_until - datetime.now()).days
             remaining = f"{days_left} kun qoldi" if days_left > 0 else "Muddati tugagan"
-        except: remaining = "Noma'lum"
+        except:
+            remaining = "Noma'lum"
         text += f"⭐ Premium: Ha, {remaining}\n"
     else:
         text += f"⭐ Premium: Yo‘q\n"
@@ -289,6 +290,11 @@ async def user_info(call: types.CallbackQuery):
         InlineKeyboardButton("⭐ Premium berish", callback_data=f"premium_{uid}"),
         InlineKeyboardButton("❌ Rad etish", callback_data=f"reject_{uid}")
     )
+
+    # 🔹 Agar foydalanuvchi odiy tasdiqlangan bo‘lsa, admin uchun Premiumga o‘tkazish tugmasi
+    if u.get('driver_status') == "approved" and not u.get('is_premium'):
+        kb.add(InlineKeyboardButton("⬆ Premiumga o‘tkazish", callback_data=f"upgrade_{uid}"))
+
     await call.message.edit_text(text, reply_markup=kb)
 
 @dp.callback_query_handler(lambda c: c.data.startswith(("approve_", "reject_", "premium_")))
@@ -320,6 +326,32 @@ async def manage_user(call: types.CallbackQuery):
 
     save_json(DATA_FILE, data)
 
+@dp.callback_query_handler(lambda c: c.data.startswith("view_ride_"))
+async def view_ride_callback(call: types.CallbackQuery):
+    ride_id = call.data.split("_")[-1]  # view_ride_123 => 123
+    uid = str(call.from_user.id)
+    u = data['users'].get(uid)
+
+    # Agar foydalanuvchi Premium emas va admin ham emas
+    if (not u or u.get('is_premium') != 1) and uid not in ADMINS:
+        return await call.answer("Siz ko‘rish uchun Premium bo‘lishingiz kerak! ⭐", show_alert=True)
+
+    # Premium yoki admin foydalanuvchi uchun yo‘lovchi eloni chiqarish
+    ride = ads['passenger'].get(ride_id)
+    if not ride:
+        return await call.answer("E’lon topilmadi yoki o‘chirib yuborilgan!", show_alert=True)
+
+    text = (
+        f"🆔 <b>{ride_id}</b>\n"
+        f"📍 Manzil: {ride.get('from')} ➡ {ride.get('to')}\n"
+        f"📅 Sana: {ride.get('date')}\n"
+        f"⏰ Vaqt: {ride.get('time')}\n"
+        f"👤 Foydalanuvchi: {ride.get('username') or 'Anonim'}"
+    )
+
+    await call.message.answer(text)
+    await call.answer()  # callbackni tugatish
+
 @dp.message_handler(state=PremiumStates.waiting_for_month)
 async def set_premium_duration(message: types.Message, state: FSMContext):
     try:
@@ -339,14 +371,41 @@ async def set_premium_duration(message: types.Message, state: FSMContext):
     u['is_premium'] = 1
     u['premium_until'] = premium_until.isoformat()
 
-    await message.answer(f"{u.get('full_name')} foydalanuvchiga ⭐ Premium berildi {months} oyga!")
+    save_json(DATA_FILE, data)
+
+    # Foydalanuvchiga xabar
     try:
         await bot.send_message(uid, f"Sizga {months} oyga Premium berildi! ⭐\nMuddat: {premium_until.date()}")
-    except: pass
+    except:
+        pass
 
-    save_json(DATA_FILE, data)
+    await message.answer(f"{u.get('full_name')} foydalanuvchiga ⭐ Premium berildi {months} oyga!")
+    
+    # ✅ FSM tugatish
     await state.finish()
 
+    # 🔹 Agar foydalanuvchi premium bo‘lsa, bosh menyuga qaytarish
+    kb = InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        InlineKeyboardButton("📨 Haydovchi bo‘lish uchun ariza yuborish", callback_data="apply_driver"),
+        InlineKeyboardButton("🚌 Yo‘lovchi e’lonlarini ko‘rish", callback_data="view_rides")
+    )
+    try:
+        await bot.send_message(uid, "Bosh menyuga qayting:", reply_markup=kb)
+    except:
+        pass
+
+@dp.callback_query_handler(lambda c: c.data.startswith("upgrade_"))
+async def upgrade_to_premium(call: CallbackQuery):
+    uid = call.data.split("_")[1]
+    u = data['users'].get(uid)
+    if not u:
+        return await call.answer("Foydalanuvchi topilmadi!", show_alert=True)
+
+    await call.message.answer(f"{u.get('full_name')} foydalanuvchini Premiumga o‘tkazish uchun necha oy berasiz?")
+    await PremiumStates.waiting_for_month.set()
+    state_data = dp.current_state(user=call.from_user.id)
+    await state_data.update_data(uid=uid)
 # ---------------- ADMIN HAYDOVCHI TASDIQLASH ----------------
 @dp.callback_query_handler(lambda c: c.data and (c.data.startswith("drv_ok:") or c.data.startswith("drv_no:") or c.data.startswith("drv_view:") or c.data.startswith("drv_remove:") or c.data.startswith("drv_keep:")))
 async def admin_driver_action(call: types.CallbackQuery):
