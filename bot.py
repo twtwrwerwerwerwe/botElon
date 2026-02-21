@@ -17,7 +17,7 @@ BOT_USERNAME = "@RishtonBuvaydaBogdod_bot"
 
 # Bu yerga 1 yoki undan ortiq kanal id larini qo'yishingiz mumkin.
 DRIVER_CHANNELS = [-1003292352387, -1002558743974, -1002258300973, -1001168970257, -1002401105872, -1002071453667, -1002336638025, -1002280167812, -1001742021244, -1002671120549, -1002349130903,-1001845354641, -1002196478283, -1002454716537]
-PASSENGER_CHANNELS = [-1003443552869, -1002963614686]
+PASSENGER_CHANNELS = [-1003443552869, -1003706847533]
 
 DATA_FILE = Path("data.json")
 ADS_FILE = Path("ads.json")
@@ -672,7 +672,7 @@ async def submit_passenger_ad(user_id, ad_text):
     kb.add(InlineKeyboardButton("📥 Ko‘rish", callback_data=f"view_pass:{ad_id}"))
 
     for ch in PASSENGER_CHANNELS:
-        msg = await bot.send_message(ch, f"\n{ad_text[:100]} ...", reply_markup=kb)
+        msg = await bot.send_message(ch, f"\n{ad_text[:100]}", reply_markup=kb)
         ads['passenger'][ad_id]['group_msg_id'] = msg.message_id
 
     save_json(ADS_FILE, ads)
