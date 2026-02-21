@@ -441,32 +441,24 @@ async def driver_clear(message: types.Message):
     save_json(DATA_FILE, data)
     await message.answer("Tozalandi!", reply_markup=main_menu())
 
-@dp.message_handler(lambda m: m.text == "✅ Tasdiqlash")
-async def driver_confirm(message: types.Message):
-    uid = str(message.from_user.id)
-    u = data['users'][uid]['driver_temp']
-    # ad yaratish
-    ad_id = str(time.time()).replace('.', '')
-    ads['passenger'][ad_id] = {
-        "user": str(message.from_user.id),
-        "route": t['route'],
-        "people": t['people'],
-        "time": t['time'],
-        "phone": t['phone'],
-        "created": time.time(),
-        "taken_by": None  # hali haydovchi olmagan
-    }
-    save_json(ADS_FILE, ads)
+@dp.callback_query_handler(lambda c: c.data.startswith("driver_confirm_"))
+async def driver_confirm(call: types.CallbackQuery):
+    ride_id = call.data.split("_")[-1]  # callback_data: driver_confirm_123
+    t = ads['driver'].get(ride_id)
+    if not t:
+        return await call.answer("E’lon topilmadi!", show_alert=True)
 
-    data['users'][uid]['driver_temp'] = {}
-    data['users'][uid]['state'] = None
-    # e'lon yaratishda pauza false bo'lsin
-    data['users'][uid]['driver_paused'] = False
-    save_json(DATA_FILE, data)
+    text = (
+        f"🚌 Yo‘lovchi e’loni:\n"
+        f"📍 Manzil: {t['from']} ➡ {t['to']}\n"
+        f"📅 Sana: {t['date']}\n"
+        f"⏰ Vaqt: {t['time']}\n"
+        f"👤 Foydalanuvchi: {t.get('username', 'Anonim')}\n"
+        f"🛣 Route: {t['route']}"
+    )
 
-    # xabar: e'lon yuborish boshlandi va minimal tugmalar (To'xtatish, Yangi e'lon, Orqaga)
-    await message.answer("🚀 E’lon yuborish boshlandi!", reply_markup=ReplyKeyboardMarkup(resize_keyboard=True).add("⏸ To‘xtatish", "🆕 Yangi e’lon").add("◀️ Orqaga"))
-
+    await call.message.answer(text)
+    await call.answer()
 # ---------------- DRIVER LOOP ----------------
 async def driver_loop():
     """
