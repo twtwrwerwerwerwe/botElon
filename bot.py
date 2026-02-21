@@ -3,32 +3,22 @@ import asyncio
 import json
 import time
 from pathlib import Path
-from aiogram import Bot, Dispatcher, types
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.utils import executor
-import time
-import json
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-import sqlite3
-from aiogram.types import CallbackQuery
 from datetime import datetime, timedelta
+import sqlite3
 
-# 🔗 DATABASE ULANISH
+# Aiogram imports
+from aiogram import Bot, Dispatcher, types
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from aiogram.utils import executor
+from aiogram.contrib.fsm_storage.memory import MemoryStorage
+from aiogram.dispatcher.filters.state import State, StatesGroup
+from aiogram.dispatcher import FSMContext
+
+# ---------------- DATABASE ----------------
 conn = sqlite3.connect("bot.db")
 cursor = conn.cursor()
 
-def is_user_premium(user_id):
-    cursor.execute("SELECT is_premium, premium_until FROM users WHERE user_id=?", (user_id,))
-    user = cursor.fetchone()
-
-    if user:
-        is_premium, premium_until = user
-        if is_premium == 1:
-            return True
-
-    return False
-
-# 👤 USERS TABLE
+# USERS TABLE
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS users (
     user_id INTEGER PRIMARY KEY,
@@ -36,68 +26,72 @@ CREATE TABLE IF NOT EXISTS users (
     premium_until TEXT
 )
 """)
-
 conn.commit()
+
+def is_user_premium(user_id):
+    cursor.execute("SELECT is_premium, premium_until FROM users WHERE user_id=?", (user_id,))
+    user = cursor.fetchone()
+    if user:
+        is_premium, premium_until = user
+        if is_premium == 1:
+            return True
+    return False
 
 # ---------------- CONFIG ----------------
 TOKEN = "8212255968:AAETRL91puhUESsCP7eFKm7pE51tKgm6SQo"
 ADMINS = [6302873072, 6731395876]
 BOT_USERNAME = "@RishtonBuvaydaBogdod_bot"
 
-# Bu yerga 1 yoki undan ortiq kanal id larini qo'yishingiz mumkin.
-DRIVER_CHANNELS = [-1003292352387, -1002558743974, -1002258300973, -1001168970257, -1002401105872, -1002071453667, -1002336638025, -1002280167812, -1001742021244, -1002671120549, -1002349130903,-1001845354641, -1002196478283, -1002454716537]
+# Kanallar
+DRIVER_CHANNELS = [
+    -1003292352387, -1002558743974, -1002258300973, -1001168970257,
+    -1002401105872, -1002071453667, -1002336638025, -1002280167812,
+    -1001742021244, -1002671120549, -1002349130903, -1001845354641,
+    -1002196478283, -1002454716537
+]
 PASSENGER_CHANNELS = [-1003443552869, -1003706847533]
 
 DATA_FILE = Path("data.json")
 ADS_FILE = Path("ads.json")
 
 # ---------------- JSON HELPERS ----------------
-def load_json(path, default):
+def load_json(path, default=None):
     if not path.exists():
-        return default
+        return default if default else {}
     try:
         d = json.loads(path.read_text(encoding="utf-8"))
         if not isinstance(d, dict):
-            return default
-        # ensure structure for compatibility
-        if 'users' not in d:
-            d['users'] = {}
-        if 'admin_notifs' not in d:
-            d['admin_notifs'] = {}  # uid -> list of {"admin": id, "msg_id": id}
+            return default if default else {}
         return d
     except:
-        return default
+        return default if default else {}
 
 def save_json(path, data):
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
-# ---------------- INIT FILES ----------------
+# INIT FILES
 if not DATA_FILE.exists():
-    save_json(DATA_FILE, {"users":{}, "admin_notifs": {}})
+    save_json(DATA_FILE, {"users": {}, "admin_notifs": {}})
 if not ADS_FILE.exists():
-    save_json(ADS_FILE, {"driver":{}, "passenger":{}})
+    save_json(ADS_FILE, {"driver": {}, "passenger": {}})
+
+data = load_json(DATA_FILE, {"users": {}, "admin_notifs": {}})
+ads = load_json(ADS_FILE, {"driver": {}, "passenger": {}})
 
 # ---------------- BOT ----------------
+storage = MemoryStorage()
 bot = Bot(TOKEN, parse_mode="HTML")
-dp = Dispatcher(bot)
-data = load_json(DATA_FILE, {"users":{}, "admin_notifs": {}})
-ads = load_json(ADS_FILE, {"driver":{}, "passenger":{}})
+dp = Dispatcher(bot, storage=storage)
 
+# ---------------- FSM STATES ----------------
 class PremiumStates(StatesGroup):
     waiting_for_month = State()
 
-
-ADS_FILE = "ads.json"
-
-def load_json(path):
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-def save_json(path, data):
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
-
-ads = load_json(ADS_FILE)
+# ---------------- HELPER FUNCTIONS ----------------
+def ensure_user_exists(uid: int):
+    """Bazaga userni qo'shish yoki mavjud bo'lsa tekshirish"""
+    cursor.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (uid,))
+    conn.commit()
 
 
 # ---------------- KEYBOARDS ----------------
