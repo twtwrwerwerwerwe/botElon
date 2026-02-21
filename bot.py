@@ -44,9 +44,6 @@ TOKEN = "8212255968:AAETRL91puhUESsCP7eFKm7pE51tKgm6SQo"
 ADMINS = [6302873072, 6731395876]
 BOT_USERNAME = "@RishtonBuvaydaBogdod_bot"
 
-class PremiumStates(StatesGroup):
-    waiting_for_month = State()
-
 # Bu yerga 1 yoki undan ortiq kanal id larini qo'yishingiz mumkin.
 DRIVER_CHANNELS = [-1003292352387, -1002558743974, -1002258300973, -1001168970257, -1002401105872, -1002071453667, -1002336638025, -1002280167812, -1001742021244, -1002671120549, -1002349130903,-1001845354641, -1002196478283, -1002454716537]
 PASSENGER_CHANNELS = [-1003443552869, -1003706847533]
@@ -85,6 +82,9 @@ bot = Bot(TOKEN, parse_mode="HTML")
 dp = Dispatcher(bot)
 data = load_json(DATA_FILE, {"users":{}, "admin_notifs": {}})
 ads = load_json(ADS_FILE, {"driver":{}, "passenger":{}})
+
+class PremiumStates(StatesGroup):
+    waiting_for_month = State()
 
 
 ADS_FILE = "ads.json"
@@ -352,7 +352,7 @@ async def set_premium_duration(message: types.Message, state: FSMContext):
 
     save_json(DATA_FILE, data)
     await state.finish()
-    
+
 # ---------------- ADMIN HAYDOVCHI TASDIQLASH ----------------
 @dp.callback_query_handler(lambda c: c.data and (c.data.startswith("drv_ok:") or c.data.startswith("drv_no:") or c.data.startswith("drv_view:") or c.data.startswith("drv_remove:") or c.data.startswith("drv_keep:")))
 async def admin_driver_action(call: types.CallbackQuery):
