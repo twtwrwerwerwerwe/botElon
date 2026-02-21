@@ -10,6 +10,7 @@ import time
 import json
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 import sqlite3
+from aiogram.types import CallbackQuery
 
 # 🔗 DATABASE ULANISH
 conn = sqlite3.connect("bot.db")
@@ -887,7 +888,7 @@ async def my_passenger_ads(message: types.Message):
     await message.answer(text)
 
 @dp.callback_query_handler(lambda c: c.data.startswith("premium_"))
-async def premium_choose(call: CallbackQuery):
+async def premium_choose(call: types.CallbackQuery):
     user_id = call.data.split("_")[1]
 
     kb = InlineKeyboardMarkup(row_width=2)
