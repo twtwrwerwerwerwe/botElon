@@ -209,17 +209,20 @@ async def passenger_section(message: types.Message):
     await message.answer("Yo‘lovchi bo‘limi:", reply_markup=kb)
 
 # ---------------- HAYDOVCHI ARIZA ----------------
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+
 @dp.message_handler(lambda m: m.text == "📨 Haydovchi bo‘lish uchun ariza yuborish")
 async def driver_apply(message: types.Message):
     uid = str(message.from_user.id)
     u = data['users'].get(uid)
-    # Allow re-application if previously rejected or none. Block only if pending or already approved.
+
+    # Agar ariza allaqachon yuborilgan bo‘lsa
     if u and u.get('driver_status') == "pending":
         return await message.answer("Siz allaqachon ariza yuborgansiz. Iltimos kuting.", reply_markup=back_btn())
     if u and u.get('driver_status') == "approved":
         return await message.answer("Siz allaqachon tasdiqlangan haydovchisiz.", reply_markup=driver_main_kb())
 
-    # Ensure user record exists and update display info
+    # Foydalanuvchi recordini yaratish yoki yangilash
     if uid not in data['users']:
         data['users'][uid] = {
             "role": None,
@@ -232,45 +235,45 @@ async def driver_apply(message: types.Message):
             "username": message.from_user.username or ""
         }
 
-    # mark as pending
+    # Arizani pending qilamiz
     data['users'][uid]['driver_status'] = "pending"
     data['users'][uid]['driver_paused'] = False
-    # Save display info in user root so admin list can always use it
     data['users'][uid]['full_name'] = message.from_user.full_name or data['users'][uid].get('full_name', '')
     data['users'][uid]['username'] = message.from_user.username or data['users'][uid].get('username', '')
-    # also keep a snapshot in driver_temp for later detailed info if needed
     data['users'][uid].setdefault('driver_temp', {})
     data['users'][uid]['driver_temp']['name'] = data['users'][uid]['full_name'] or data['users'][uid]['username'] or f"ID:{uid}"
 
-    # Before sending new admin notifications, clear old admin_notifs for this uid
+    # Old admin notifikatsiyalarini tozalash
     data['admin_notifs'][uid] = []
 
     save_json(DATA_FILE, data)
 
+    # ✅ Inline tugmalar
     kb = InlineKeyboardMarkup(row_width=2)
     kb.add(
-        InlineKeyboardButton("✅ Tasdiqlash", callback_data=f"approve_{user_id}"),
-        InlineKeyboardButton("⭐ Premium", callback_data=f"premium_{user_id}"),
-        InlineKeyboardButton("❌ Rad etish", callback_data=f"reject_{user_id}")
+        InlineKeyboardButton("✅ Tasdiqlash", callback_data=f"approve_{uid}"),
+        InlineKeyboardButton("⭐ Premium", callback_data=f"premium_{uid}"),
+        InlineKeyboardButton("❌ Rad etish", callback_data=f"reject_{uid}")
     )
 
+    # Adminlarga xabar yuborish
     for admin in ADMINS:
         try:
             username = message.from_user.username
-            if username:
-                username_display = f"@{username}"
-            else:
-                username_display = "—"
+            username_display = f"@{username}" if username else "—"
+
             msg = await bot.send_message(
                 admin,
                 f"🚘 Haydovchilik uchun ariza:\n👤 <b>{message.from_user.full_name}</b> ({username_display})\n🆔 <code>{uid}</code>",
                 reply_markup=kb
             )
-            # saqlaymiz: admin va message_id
+            # Admin va message_id saqlash
             data['admin_notifs'].setdefault(uid, [])
             data['admin_notifs'][uid].append({"admin": admin, "msg_id": msg.message_id})
-        except:
-            pass
+        except Exception as e:
+            print(f"Xato adminga yuborishda: {e}")
+            continue
+
     save_json(DATA_FILE, data)
     await message.answer("Arizangiz adminga yuborildi! ⏳ Kuting.", reply_markup=back_btn())
 
