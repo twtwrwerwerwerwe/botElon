@@ -441,6 +441,7 @@ async def driver_clear(message: types.Message):
     save_json(DATA_FILE, data)
     await message.answer("Tozalandi!", reply_markup=main_menu())
 
+# Haydovchi e'lonini tasdiqlash
 @dp.callback_query_handler(lambda c: c.data.startswith("driver_confirm_"))
 async def driver_confirm(call: types.CallbackQuery):
     ride_id = call.data.split("_")[-1]  # callback_data: driver_confirm_123
@@ -448,17 +449,18 @@ async def driver_confirm(call: types.CallbackQuery):
     if not t:
         return await call.answer("E’lon topilmadi!", show_alert=True)
 
-    text = (
-        f"🚌 Yo‘lovchi e’loni:\n"
-        f"📍 Manzil: {t['from']} ➡ {t['to']}\n"
-        f"📅 Sana: {t['date']}\n"
-        f"⏰ Vaqt: {t['time']}\n"
-        f"👤 Foydalanuvchi: {t.get('username', 'Anonim')}\n"
-        f"🛣 Route: {t['route']}"
-    )
+    # Admin tasdiqladi, e'lon yuborish boshlanadi
+    await call.message.answer("E’lon yuborish boshlandi ✅")
 
-    await call.message.answer(text)
-    await call.answer()
+    # E'lonni guruhga yuborish
+    short_info = f"{t['from']} ➡ {t['to']}, {t['date']} {t['time']}"
+    kb = InlineKeyboardMarkup()
+    kb.add(InlineKeyboardButton("📥 Korish", callback_data=f"view_ride_{ride_id}"))
+
+    for group_id in DRIVER_CHANNELS:  # DRIVER_CHANNELS oldingi guruhlar id listi
+        await bot.send_message(group_id, f"Yangi haydovchi e’loni:\n{short_info}", reply_markup=kb)
+
+    await call.answer()  # callback tugatildi
 # ---------------- DRIVER LOOP ----------------
 async def driver_loop():
     """
