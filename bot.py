@@ -672,7 +672,7 @@ async def submit_passenger_ad(user_id, ad_text):
     kb.add(InlineKeyboardButton("📥 Ko‘rish", callback_data=f"view_pass:{ad_id}"))
 
     for ch in PASSENGER_CHANNELS:
-        msg = await bot.send_message(ch, f"📢 Yangi yo‘lovchi e’loni ko'rish uchun tugmani bosing\n", reply_markup=kb)
+        msg = await bot.send_message(ch, f"📢 Yangi yo‘lovchi e’loni:\n{ad_text[:100]}...", reply_markup=kb)
         ads['passenger'][ad_id]['group_msg_id'] = msg.message_id
 
     save_json(ADS_FILE, ads)
