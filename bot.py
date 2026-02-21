@@ -11,6 +11,7 @@ import json
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 import sqlite3
 from aiogram.types import CallbackQuery
+from datetime import datetime, timedelta
 
 # 🔗 DATABASE ULANISH
 conn = sqlite3.connect("bot.db")
@@ -42,6 +43,9 @@ conn.commit()
 TOKEN = "8212255968:AAETRL91puhUESsCP7eFKm7pE51tKgm6SQo"
 ADMINS = [6302873072, 6731395876]
 BOT_USERNAME = "@RishtonBuvaydaBogdod_bot"
+
+class PremiumStates(StatesGroup):
+    waiting_for_month = State()
 
 # Bu yerga 1 yoki undan ortiq kanal id larini qo'yishingiz mumkin.
 DRIVER_CHANNELS = [-1003292352387, -1002558743974, -1002258300973, -1001168970257, -1002401105872, -1002071453667, -1002336638025, -1002280167812, -1001742021244, -1002671120549, -1002349130903,-1001845354641, -1002196478283, -1002454716537]
@@ -209,20 +213,16 @@ async def passenger_section(message: types.Message):
     await message.answer("Yo‘lovchi bo‘limi:", reply_markup=kb)
 
 # ---------------- HAYDOVCHI ARIZA ----------------
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-
 @dp.message_handler(lambda m: m.text == "📨 Haydovchi bo‘lish uchun ariza yuborish")
 async def driver_apply(message: types.Message):
     uid = str(message.from_user.id)
     u = data['users'].get(uid)
 
-    # Agar ariza allaqachon yuborilgan bo‘lsa
     if u and u.get('driver_status') == "pending":
-        return await message.answer("Siz allaqachon ariza yuborgansiz. Iltimos kuting.", reply_markup=back_btn())
+        return await message.answer("Siz allaqachon ariza yuborgansiz. Iltimos kuting.")
     if u and u.get('driver_status') == "approved":
-        return await message.answer("Siz allaqachon tasdiqlangan haydovchisiz.", reply_markup=driver_main_kb())
+        return await message.answer("Siz allaqachon tasdiqlangan haydovchisiz.")
 
-    # Foydalanuvchi recordini yaratish yoki yangilash
     if uid not in data['users']:
         data['users'][uid] = {
             "role": None,
@@ -232,51 +232,127 @@ async def driver_apply(message: types.Message):
             "driver_temp": {},
             "pass_temp": {},
             "full_name": message.from_user.full_name or "",
-            "username": message.from_user.username or ""
+            "username": message.from_user.username or "",
+            "is_premium": 0,
+            "premium_until": None
         }
 
-    # Arizani pending qilamiz
     data['users'][uid]['driver_status'] = "pending"
-    data['users'][uid]['driver_paused'] = False
-    data['users'][uid]['full_name'] = message.from_user.full_name or data['users'][uid].get('full_name', '')
-    data['users'][uid]['username'] = message.from_user.username or data['users'][uid].get('username', '')
-    data['users'][uid].setdefault('driver_temp', {})
     data['users'][uid]['driver_temp']['name'] = data['users'][uid]['full_name'] or data['users'][uid]['username'] or f"ID:{uid}"
 
-    # Old admin notifikatsiyalarini tozalash
     data['admin_notifs'][uid] = []
-
     save_json(DATA_FILE, data)
 
-    # ✅ Inline tugmalar
+    kb = InlineKeyboardMarkup(row_width=2)
+    for admin in ADMINS:
+        try:
+            msg = await bot.send_message(
+                admin,
+                f"🚘 Haydovchilik uchun ariza:\n👤 <b>{message.from_user.full_name}</b>\n🆔 <code>{uid}</code>",
+                reply_markup=InlineKeyboardMarkup().add(
+                    InlineKeyboardButton("✅ Tasdiqlash", callback_data=f"approve_{uid}"),
+                    InlineKeyboardButton("⭐ Premium", callback_data=f"premium_{uid}"),
+                    InlineKeyboardButton("❌ Rad etish", callback_data=f"reject_{uid}")
+                )
+            )
+            data['admin_notifs'].setdefault(uid, []).append({"admin": admin, "msg_id": msg.message_id})
+        except: pass
+
+    save_json(DATA_FILE, data)
+    await message.answer("Arizangiz adminga yuborildi! ⏳ Kuting.")
+
+@dp.message_handler(lambda m: m.text == "👥 Foydalanuvchilarni ko‘rish")
+async def show_users(message: types.Message):
+    kb = InlineKeyboardMarkup(row_width=1)
+    for uid, u in data['users'].items():
+        if u.get('driver_status') == "approved":
+            name = u.get('full_name') or u.get('username') or f"ID:{uid}"
+            kb.add(InlineKeyboardButton(f"{name}", callback_data=f"userinfo_{uid}"))
+    await message.answer("Tasdiqlangan foydalanuvchilar:", reply_markup=kb)
+
+@dp.callback_query_handler(lambda c: c.data.startswith("userinfo_"))
+async def user_info(call: types.CallbackQuery):
+    uid = call.data.split("_")[1]
+    u = data['users'].get(uid)
+    if not u:
+        return await call.answer("Foydalanuvchi topilmadi!", show_alert=True)
+
+    text = f"👤 <b>{u.get('full_name') or u.get('username')}</b>\n🆔 <code>{uid}</code>\n"
+    text += f"📌 Status: {u.get('driver_status')}\n"
+    if u.get('is_premium'):
+        try:
+            premium_until = datetime.fromisoformat(u.get('premium_until'))
+            days_left = (premium_until - datetime.now()).days
+            remaining = f"{days_left} kun qoldi" if days_left > 0 else "Muddati tugagan"
+        except: remaining = "Noma'lum"
+        text += f"⭐ Premium: Ha, {remaining}\n"
+    else:
+        text += f"⭐ Premium: Yo‘q\n"
+
     kb = InlineKeyboardMarkup(row_width=2)
     kb.add(
         InlineKeyboardButton("✅ Tasdiqlash", callback_data=f"approve_{uid}"),
-        InlineKeyboardButton("⭐ Premium", callback_data=f"premium_{uid}"),
+        InlineKeyboardButton("⭐ Premium berish", callback_data=f"premium_{uid}"),
         InlineKeyboardButton("❌ Rad etish", callback_data=f"reject_{uid}")
     )
+    await call.message.edit_text(text, reply_markup=kb)
 
-    # Adminlarga xabar yuborish
-    for admin in ADMINS:
+@dp.callback_query_handler(lambda c: c.data.startswith(("approve_", "reject_", "premium_")))
+async def manage_user(call: types.CallbackQuery):
+    action, uid = call.data.split("_")
+    u = data['users'].get(uid)
+    if not u:
+        return await call.answer("Foydalanuvchi topilmadi!", show_alert=True)
+
+    if action == "approve":
+        u['driver_status'] = "approved"
+        await call.answer("Foydalanuvchi tasdiqlandi ✅", show_alert=True)
         try:
-            username = message.from_user.username
-            username_display = f"@{username}" if username else "—"
+            await bot.send_message(uid, "Siz haydovchi sifatida tasdiqlandingiz! ✅")
+        except: pass
 
-            msg = await bot.send_message(
-                admin,
-                f"🚘 Haydovchilik uchun ariza:\n👤 <b>{message.from_user.full_name}</b> ({username_display})\n🆔 <code>{uid}</code>",
-                reply_markup=kb
-            )
-            # Admin va message_id saqlash
-            data['admin_notifs'].setdefault(uid, [])
-            data['admin_notifs'][uid].append({"admin": admin, "msg_id": msg.message_id})
-        except Exception as e:
-            print(f"Xato adminga yuborishda: {e}")
-            continue
+    elif action == "reject":
+        u['driver_status'] = "rejected"
+        await call.answer("Foydalanuvchi rad etildi ❌", show_alert=True)
+        try:
+            await bot.send_message(uid, "Sizning arizangiz rad etildi ❌")
+        except: pass
+
+    elif action == "premium":
+        await call.message.answer("Necha oyga premium berasiz? (son bilan kiriting)")
+        await PremiumStates.waiting_for_month.set()
+        state_data = dp.current_state(user=call.from_user.id)
+        await state_data.update_data(uid=uid)
 
     save_json(DATA_FILE, data)
-    await message.answer("Arizangiz adminga yuborildi! ⏳ Kuting.", reply_markup=back_btn())
 
+@dp.message_handler(state=PremiumStates.waiting_for_month)
+async def set_premium_duration(message: types.Message, state: FSMContext):
+    try:
+        months = int(message.text)
+    except:
+        return await message.answer("Iltimos faqat son kiriting!")
+
+    data_state = await state.get_data()
+    uid = data_state['uid']
+    u = data['users'].get(uid)
+    if not u:
+        await message.answer("Foydalanuvchi topilmadi!")
+        await state.finish()
+        return
+
+    premium_until = datetime.now() + timedelta(days=30*months)
+    u['is_premium'] = 1
+    u['premium_until'] = premium_until.isoformat()
+
+    await message.answer(f"{u.get('full_name')} foydalanuvchiga ⭐ Premium berildi {months} oyga!")
+    try:
+        await bot.send_message(uid, f"Sizga {months} oyga Premium berildi! ⭐\nMuddat: {premium_until.date()}")
+    except: pass
+
+    save_json(DATA_FILE, data)
+    await state.finish()
+    
 # ---------------- ADMIN HAYDOVCHI TASDIQLASH ----------------
 @dp.callback_query_handler(lambda c: c.data and (c.data.startswith("drv_ok:") or c.data.startswith("drv_no:") or c.data.startswith("drv_view:") or c.data.startswith("drv_remove:") or c.data.startswith("drv_keep:")))
 async def admin_driver_action(call: types.CallbackQuery):
@@ -948,11 +1024,22 @@ async def remove_premium(call: CallbackQuery):
 
 @dp.message_handler(commands=['start'])
 async def start_handler(message: types.Message):
-    user_id = message.from_user.id
+    user_id = str(message.from_user.id)
 
-    # 🔥 userni bazaga qo‘shish
-    cursor.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,))
-    conn.commit()
+    if user_id not in data['users']:
+        data['users'][user_id] = {
+            "role": None,
+            "driver_status": "none",
+            "driver_paused": False,
+            "state": None,
+            "driver_temp": {},
+            "pass_temp": {},
+            "full_name": message.from_user.full_name or "",
+            "username": message.from_user.username or "",
+            "is_premium": 0,
+            "premium_until": None
+        }
+        save_json(DATA_FILE, data)
 
     await message.answer("Botga xush kelibsiz!")
 
