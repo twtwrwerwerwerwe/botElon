@@ -9,6 +9,33 @@ from aiogram.utils import executor
 import time
 import json
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+import sqlite3
+
+# 🔗 DATABASE ULANISH
+conn = sqlite3.connect("bot.db")
+cursor = conn.cursor()
+
+def is_user_premium(user_id):
+    cursor.execute("SELECT is_premium, premium_until FROM users WHERE user_id=?", (user_id,))
+    user = cursor.fetchone()
+
+    if user:
+        is_premium, premium_until = user
+        if is_premium == 1:
+            return True
+
+    return False
+
+# 👤 USERS TABLE
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS users (
+    user_id INTEGER PRIMARY KEY,
+    is_premium INTEGER DEFAULT 0,
+    premium_until TEXT
+)
+""")
+
+conn.commit()
 
 # ---------------- CONFIG ----------------
 TOKEN = "8212255968:AAETRL91puhUESsCP7eFKm7pE51tKgm6SQo"
@@ -17,7 +44,7 @@ BOT_USERNAME = "@RishtonBuvaydaBogdod_bot"
 
 # Bu yerga 1 yoki undan ortiq kanal id larini qo'yishingiz mumkin.
 DRIVER_CHANNELS = [-1003292352387, -1002558743974, -1002258300973, -1001168970257, -1002401105872, -1002071453667, -1002336638025, -1002280167812, -1001742021244, -1002671120549, -1002349130903,-1001845354641, -1002196478283, -1002454716537]
-PASSENGER_CHANNELS = [-1003443552869, -1002963614686]
+PASSENGER_CHANNELS = [-1003443552869, -1003706847533]
 
 DATA_FILE = Path("data.json")
 ADS_FILE = Path("ads.json")
@@ -219,10 +246,11 @@ async def driver_apply(message: types.Message):
 
     save_json(DATA_FILE, data)
 
-    kb = InlineKeyboardMarkup()
+    kb = InlineKeyboardMarkup(row_width=2)
     kb.add(
-        InlineKeyboardButton("✅ Tasdiqlash", callback_data=f"drv_ok:{uid}"),
-        InlineKeyboardButton("❌ Rad etish", callback_data=f"drv_no:{uid}")
+        InlineKeyboardButton("✅ Tasdiqlash", callback_data=f"approve_{user_id}"),
+        InlineKeyboardButton("⭐ Premium", callback_data=f"premium_{user_id}"),
+        InlineKeyboardButton("❌ Rad etish", callback_data=f"reject_{user_id}")
     )
 
     for admin in ADMINS:
@@ -672,7 +700,7 @@ async def submit_passenger_ad(user_id, ad_text):
     kb.add(InlineKeyboardButton("📥 Ko‘rish", callback_data=f"view_pass:{ad_id}"))
 
     for ch in PASSENGER_CHANNELS:
-        msg = await bot.send_message(ch, f"📢 Yangi yo‘lovchi e’loni:\n{ad_text[:100]}...", reply_markup=kb)
+        msg = await bot.send_message(ch, f"\n{ad_text[:100]} ...", reply_markup=kb)
         ads['passenger'][ad_id]['group_msg_id'] = msg.message_id
 
     save_json(ADS_FILE, ads)
@@ -683,6 +711,21 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 # --- Guruhdagi korish tugmasi (faqat botga) ---
 @dp.callback_query_handler(lambda c: c.data.startswith("view_pass:"))
 async def view_passenger(call: types.CallbackQuery):
+    user_id = call.from_user.id
+
+    cursor.execute("SELECT is_premium, premium_until FROM users WHERE user_id=?", (user_id,))
+    user = cursor.fetchone()
+
+    from datetime import datetime
+
+    if not user:
+        return
+
+    is_premium, premium_until = user
+
+    if not is_premium or datetime.strptime(premium_until, "%Y-%m-%d %H:%M:%S") < datetime.now():
+        await call.answer("❌ Premium kerak!", show_alert=True)
+        return
     ad_id = call.data.split(":")[1]
     ad = ads['passenger'].get(ad_id)
     if not ad:
@@ -843,6 +886,71 @@ async def my_passenger_ads(message: types.Message):
         text = "Yo‘lovchi e’lonlari yo‘q."
     await message.answer(text)
 
+@dp.callback_query_handler(lambda c: c.data.startswith("premium_"))
+async def premium_choose(call: CallbackQuery):
+    user_id = call.data.split("_")[1]
+
+    kb = InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        InlineKeyboardButton("1 oy", callback_data=f"premtime_1_{user_id}"),
+        InlineKeyboardButton("3 oy", callback_data=f"premtime_3_{user_id}"),
+        InlineKeyboardButton("1 yil", callback_data=f"premtime_12_{user_id}"),
+        InlineKeyboardButton("Boshqa", callback_data=f"premtime_custom_{user_id}")
+    )
+
+    await call.message.edit_text("⏳ Necha oyga premium qilinsin?", reply_markup=kb)
+
+from datetime import datetime, timedelta
+
+@dp.callback_query_handler(lambda c: c.data.startswith("premtime_"))
+async def set_premium(call: CallbackQuery):
+    parts = call.data.split("_")
+    months = int(parts[1])
+    user_id = int(parts[2])
+
+    until = datetime.now() + timedelta(days=30*months)
+
+    cursor.execute(
+        "UPDATE users SET is_premium=1, premium_until=? WHERE user_id=?",
+        (until.strftime("%Y-%m-%d %H:%M:%S"), user_id)
+    )
+    conn.commit()
+
+    await call.message.edit_text(f"⭐ {months} oyga premium qilindi!")
+
+@dp.callback_query_handler(lambda c: c.data == "premium_users")
+async def show_premium(call: CallbackQuery):
+    cursor.execute("SELECT user_id FROM users WHERE is_premium=1")
+    users = cursor.fetchall()
+
+    text = "⭐ Premium foydalanuvchilar:\n\n"
+
+    for u in users:
+        text += f"👤 {u[0]}\n"
+
+    await call.message.edit_text(text)
+
+@dp.callback_query_handler(lambda c: c.data.startswith("removeprem_"))
+async def remove_premium(call: CallbackQuery):
+    user_id = int(call.data.split("_")[1])
+
+    cursor.execute(
+        "UPDATE users SET is_premium=0, premium_until=NULL WHERE user_id=?",
+        (user_id,)
+    )
+    conn.commit()
+
+    await call.message.edit_text("✅ Oddiyga tushirildi")
+
+@dp.message_handler(commands=['start'])
+async def start_handler(message: types.Message):
+    user_id = message.from_user.id
+
+    # 🔥 userni bazaga qo‘shish
+    cursor.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,))
+    conn.commit()
+
+    await message.answer("Botga xush kelibsiz!")
 
 # ---------------- UNIVERSAL "ORQAGA" HANDLER ----------------
 @dp.message_handler(lambda m: m.text == "◀️ Orqaga")
