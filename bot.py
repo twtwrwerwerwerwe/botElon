@@ -699,6 +699,42 @@ async def submit_passenger_ad(user_id, ad_text):
     save_json(ADS_FILE, ads)
 
 
+# ---------------- YOLOVCHI E’LONNI KO'RISH ----------------
+@dp.callback_query_handler(lambda c: c.data.startswith("view_pass:"))
+async def view_passenger(call: types.CallbackQuery):
+    ad_id = call.data.split(":")[1]
+    ad = ads['passenger'].get(ad_id)
+    if not ad:
+        await call.answer("❌ E’lon topilmadi yoki bekor qilingan.", show_alert=True)
+        return
+
+    if ad.get('taken_by'):
+        await call.answer(f"❌ Bu e’lon allaqachon boshqa haydovchi tomonidan qabul qilingan.", show_alert=True)
+        return
+
+    uid = str(call.from_user.id)
+    ad['taken_by'] = uid
+    save_json(ADS_FILE, ads)
+
+    ad_text = ad.get('text', '')
+    await call.message.edit_text(
+        ad_text + f"\n\n✅ Siz bu e’lonni qabul qildingiz.",
+        reply_markup=None
+    )
+
+    passenger_id = ad.get('user')
+    if passenger_id:
+        try:
+            await bot.send_message(
+                passenger_id,
+                f"🚖 Sizning e’loningizni haydovchi @{call.from_user.username or call.from_user.full_name} qabul qildi."
+            )
+        except:
+            pass
+
+    await call.answer("✅ Siz e’loni qabul qildingiz.", show_alert=True)
+
+
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 # --- Guruhdagi korish tugmasi (faqat botga) ---
