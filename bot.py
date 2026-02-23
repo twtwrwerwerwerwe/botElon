@@ -864,6 +864,32 @@ async def my_passenger_ads(message: types.Message):
         text = "Yo‘lovchi e’lonlari yo‘q."
     await message.answer(text)
 
+@dp.callback_query_handler(lambda c: c.data.startswith("accept_"))
+async def accept_order(call: types.CallbackQuery):
+    ad_id = call.data.split("_")[1]
+    user = call.from_user
+
+    ad = ads['passenger'].get(ad_id)
+    if not ad:
+        return await call.answer("❌ E'lon topilmadi", show_alert=True)
+
+    name = user.full_name
+
+    # 🔥 HAMMA GURUH XABARLARINI O‘ZGARTIRAMIZ
+    for item in ad.get("msg_ids", []):
+        try:
+            await bot.edit_message_text(
+                chat_id=item['chat_id'],
+                message_id=item['msg_id'],
+                text=f"✅ {name} qabul qildi"
+            )
+        except:
+            pass
+
+    # 🔥 QABUL QILGAN ODAMGA
+    await call.message.answer("✅ Siz qabul qildingiz")
+    await call.answer()
+
 
 # ---------------- UNIVERSAL "ORQAGA" HANDLER ----------------
 @dp.message_handler(lambda m: m.text == "◀️ Orqaga")
