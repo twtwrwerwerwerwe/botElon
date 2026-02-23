@@ -864,53 +864,6 @@ async def my_passenger_ads(message: types.Message):
         text = "Yo‘lovchi e’lonlari yo‘q."
     await message.answer(text)
 
-
-# ---------------- YOLOVCHI E’LONNI KO'RISH ----------------
-@dp.callback_query_handler(lambda c: c.data.startswith("view_pass:"))
-async def view_passenger(call: types.CallbackQuery):
-    ad_id = call.data.split(":")[1]
-    ad = ads['passenger'].get(ad_id)
-    if not ad:
-        await call.answer("❌ E’lon topilmadi yoki bekor qilingan.", show_alert=True)
-        return
-
-    uid = str(call.from_user.id)
-    # Shu yerda nickni olamiz, agar username bo'lmasa full_name ishlatamiz
-    driver_nick = call.from_user.username or call.from_user.full_name or f"ID:{uid}"
-
-    # agar e’lon allaqachon qabul qilingan bo‘lsa
-    if ad.get('taken_by'):
-        taken_by_name = ad.get('taken_by_name', 'Noma\'lum')
-        # Alert chiqaramiz: kim qabul qilganini ko‘rsatadi
-        await call.answer(f"❌ Bu e’lon allaqachon {taken_by_name} tomonidan qabul qilingan.", show_alert=True)
-        return
-
-    # e’lonni qabul qilgan sifatida belgila
-    ad['taken_by'] = uid
-    ad['taken_by_name'] = driver_nick
-    save_json(ADS_FILE, ads)
-
-    # guruhdagi xabarni yangilash: kim qabul qilgani yoziladi
-    ad_text = ad.get('text', '')
-    await call.message.edit_text(
-        ad_text + f"\n\n✅ Qabul qilindi – {driver_nick} qabul qildi",
-        reply_markup=None
-    )
-
-    # Alertda ham kim qabul qilgani chiqadi
-    await call.answer(f"✅ Siz e’loni qabul qildingiz. ({driver_nick})", show_alert=True)
-
-    # Yo‘lovchiga ham xabar boradi
-    passenger_id = ad.get('user')
-    if passenger_id:
-        try:
-            await bot.send_message(
-                passenger_id,
-                f"🚖 Sizning e’loningizni {driver_nick} qabul qildi."
-            )
-        except:
-            pass
-
 # ---------------- UNIVERSAL "ORQAGA" HANDLER ----------------
 @dp.message_handler(lambda m: m.text == "◀️ Orqaga")
 async def go_back(message: types.Message):
