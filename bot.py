@@ -875,7 +875,8 @@ async def view_passenger(call: types.CallbackQuery):
         return
 
     uid = str(call.from_user.id)
-    driver_name = call.from_user.full_name or f"ID:{uid}"
+    # Shu yerda nickni olamiz, agar username bo'lmasa full_name ishlatamiz
+    driver_nick = call.from_user.username or call.from_user.full_name or f"ID:{uid}"
 
     # agar e’lon allaqachon qabul qilingan bo‘lsa
     if ad.get('taken_by'):
@@ -886,18 +887,29 @@ async def view_passenger(call: types.CallbackQuery):
 
     # e’lonni qabul qilgan sifatida belgila
     ad['taken_by'] = uid
-    ad['taken_by_name'] = driver_name
+    ad['taken_by_name'] = driver_nick
     save_json(ADS_FILE, ads)
 
-    # guruhdagi xabarni yangilash
+    # guruhdagi xabarni yangilash: kim qabul qilgani yoziladi
     ad_text = ad.get('text', '')
     await call.message.edit_text(
-        ad_text + f"\n\n✅ Qabul qilindi – {driver_name} qabul qildi",
+        ad_text + f"\n\n✅ Qabul qilindi – {driver_nick} qabul qildi",
         reply_markup=None
     )
 
-    # Alert chiqadi: kim qabul qilgani
-    await call.answer(f"✅ Siz e’loni qabul qildingiz.", show_alert=True)
+    # Alertda ham kim qabul qilgani chiqadi
+    await call.answer(f"✅ Siz e’loni qabul qildingiz. ({driver_nick})", show_alert=True)
+
+    # Yo‘lovchiga ham xabar boradi
+    passenger_id = ad.get('user')
+    if passenger_id:
+        try:
+            await bot.send_message(
+                passenger_id,
+                f"🚖 Sizning e’loningizni {driver_nick} qabul qildi."
+            )
+        except:
+            pass
 
 # ---------------- UNIVERSAL "ORQAGA" HANDLER ----------------
 @dp.message_handler(lambda m: m.text == "◀️ Orqaga")
