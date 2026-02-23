@@ -874,31 +874,29 @@ async def view_passenger(call: types.CallbackQuery):
         await call.answer("❌ E’lon topilmadi yoki bekor qilingan.", show_alert=True)
         return
 
+    uid = str(call.from_user.id)
+    driver_name = call.from_user.full_name or f"ID:{uid}"
+
+    # agar e’lon allaqachon qabul qilingan bo‘lsa
     if ad.get('taken_by'):
-        await call.answer(f"❌ Bu e’lon allaqachon boshqa haydovchi tomonidan qabul qilingan.", show_alert=True)
+        taken_by_name = ad.get('taken_by_name', 'Noma\'lum')
+        await call.answer(f"❌ Bu e’lon allaqachon {taken_by_name} tomonidan qabul qilingan.", show_alert=True)
         return
 
-    uid = str(call.from_user.id)
+    # e’lonni qabul qilgan sifatida belgila
     ad['taken_by'] = uid
+    ad['taken_by_name'] = driver_name
     save_json(ADS_FILE, ads)
 
+    # guruhdagi xabarni yangilash
     ad_text = ad.get('text', '')
     await call.message.edit_text(
-        ad_text + f"\n\n✅ Siz bu e’lonni qabul qildingiz.",
+        ad_text + f"\n\n✅ Qabul qilindi – {driver_name} qabul qildi",
         reply_markup=None
     )
 
-    passenger_id = ad.get('user')
-    if passenger_id:
-        try:
-            await bot.send_message(
-                passenger_id,
-                f"🚖 Sizning e’loningizni haydovchi @{call.from_user.username or call.from_user.full_name} qabul qildi."
-            )
-        except:
-            pass
-
-    await call.answer("✅ Siz e’loni qabul qildingiz.", show_alert=True)
+    # alert foydalanuvchiga (o‘sha haydovchiga) faqat tasdiqlash uchun
+    await call.answer(f"✅ Siz e’loni qabul qildingiz.", show_alert=True)
 
 # ---------------- UNIVERSAL "ORQAGA" HANDLER ----------------
 @dp.message_handler(lambda m: m.text == "◀️ Orqaga")
