@@ -864,7 +864,8 @@ async def my_passenger_ads(message: types.Message):
         text = "Yo‘lovchi e’lonlari yo‘q."
     await message.answer(text)
 
-# ---------------- UNIVERSAL "ORQAGA" HANDLER ----------------
+
+#------------ UNIVERSAL "ORQAGA" HANDLER -
 @dp.message_handler(lambda m: m.text == "◀️ Orqaga")
 async def go_back(message: types.Message):
     uid = str(message.from_user.id)
