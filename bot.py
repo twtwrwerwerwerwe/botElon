@@ -17,7 +17,7 @@ BOT_USERNAME = "@RishtonBuvaydaBogdod_bot"
 
 # Bu yerga 1 yoki undan ortiq kanal id larini qo'yishingiz mumkin.
 DRIVER_CHANNELS = [-1003292352387, -1002558743974, -1002258300973, -1001168970257, -1002401105872, -1002071453667, -1002336638025, -1002280167812, -1001742021244, -1002671120549, -1002349130903,-1001845354641, -1002196478283, -1002454716537]
-PASSENGER_CHANNELS = [-1003443552869, -1003706847533]
+PASSENGER_CHANNELS = [-1003443552869]
 
 DATA_FILE = Path("data.json")
 ADS_FILE = Path("ads.json")
@@ -694,10 +694,7 @@ async def submit_passenger_ad(user_id, ad_text):
 
     for ch in PASSENGER_CHANNELS:
         msg = await bot.send_message(ch, f"\n{ad_text[:100]}", reply_markup=kb)
-        ads['passenger'][ad_id]['preview'] = {    # <-- shu yerini qo‘shish
-            "chat_id": ch,
-            "message_id": msg.message_id
-        }
+        ads['passenger'][ad_id]['group_msg_id'] = msg.message_id
 
     save_json(ADS_FILE, ads)
 
@@ -781,44 +778,33 @@ async def view_passenger(call: types.CallbackQuery):
     await call.answer("E’lon botga ochildi ✅", show_alert=True)
 
 # --- Qabul qilish tugmasi ---
-@dp.callback_query_handler(lambda c: c.data.startswith("pass_take:"))
+@dp.callback_query_handler(lambda c: c.data.startswith("take_pass:"))
 async def take_passenger(call: types.CallbackQuery):
     uid = str(call.from_user.id)
     ad_id = call.data.split(":")[1]
-
     ad = ads['passenger'].get(ad_id)
     if not ad:
-        return await call.answer("E'lon topilmadi", show_alert=True)
+        return await call.answer("Topilmadi", show_alert=True)
 
-    # 🔒 AGAR OLDIN QABUL QILINGAN BO‘LSA
-    if ad.get("taken_by"):
-        return await call.answer("❌ Bu e'lon allaqachon band qilingan", show_alert=True)
+    if ad.get('taken_by'):
+        return await call.answer("❌ Boshqa foydalanuvchi allaqachon qabul qilgan.", show_alert=True)
 
-    # 👤 kim bosdi
-    user = call.from_user
-    if user.username:
-        name = f"@{user.username}"
-    else:
-        name = user.full_name
-
-    # saqlaymiz
-    ad["taken_by"] = name
+    # Shu foydalanuvchi qabul qildi
+    ad['taken_by'] = uid
     save_json(ADS_FILE, ads)
 
-    # bot ichida xabar
-    await call.answer("✅ Siz e'lonni qabul qildingiz", show_alert=True)
-
-    # 🔥 GURUH ESLATMANI O‘ZGARTIRAMIZ
-    preview = ad.get("preview")
-    if preview:
+    # Guruhdagi eslatmani "Qabul qilindi" ga o'zgartirish
+    for ch in PASSENGER_CHANNELS:
         try:
-            await bot.edit_message_text(
-                f"❌ Band qilindi\n\n👤 {name} qabul qildi",
-                chat_id=preview["chat_id"],
-                message_id=preview["message_id"]
-            )
+            kb = InlineKeyboardMarkup()
+            kb.add(InlineKeyboardButton("✅ Qabul qilindi", callback_data="none"))
+            await bot.edit_message_reply_markup(chat_id=ch, message_id=ad.get('group_msg_id'), reply_markup=kb)
         except:
             pass
+
+    # Faqat shu foydalanuvchiga xabar
+    await call.message.edit_reply_markup(reply_markup=None)
+    await call.message.answer("✅ Siz e’lonni qabul qildingiz.")
 
 @dp.message_handler(lambda m: m.text == "📥 Yo‘lovchi e’lonlari")
 async def passenger_ads_menu(message: types.Message):
@@ -877,32 +863,6 @@ async def my_passenger_ads(message: types.Message):
     if text == "📥 Yo‘lovchi e’lonlari:\n\n":
         text = "Yo‘lovchi e’lonlari yo‘q."
     await message.answer(text)
-
-@dp.callback_query_handler(lambda c: c.data.startswith("accept_"))
-async def accept_order(call: types.CallbackQuery):
-    ad_id = call.data.split("_")[1]
-    user = call.from_user
-
-    ad = ads['passenger'].get(ad_id)
-    if not ad:
-        return await call.answer("❌ E'lon topilmadi", show_alert=True)
-
-    name = user.full_name
-
-    # 🔥 HAMMA GURUH XABARLARINI O‘ZGARTIRAMIZ
-    for item in ad.get("msg_ids", []):
-        try:
-            await bot.edit_message_text(
-                chat_id=item['chat_id'],
-                message_id=item['msg_id'],
-                text=f"✅ {name} qabul qildi"
-            )
-        except:
-            pass
-
-    # 🔥 QABUL QILGAN ODAMGA
-    await call.message.answer("✅ Siz qabul qildingiz")
-    await call.answer()
 
 
 # ---------------- UNIVERSAL "ORQAGA" HANDLER ----------------
