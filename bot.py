@@ -880,6 +880,7 @@ async def view_passenger(call: types.CallbackQuery):
     # agar e’lon allaqachon qabul qilingan bo‘lsa
     if ad.get('taken_by'):
         taken_by_name = ad.get('taken_by_name', 'Noma\'lum')
+        # Alert chiqaramiz: kim qabul qilganini ko‘rsatadi
         await call.answer(f"❌ Bu e’lon allaqachon {taken_by_name} tomonidan qabul qilingan.", show_alert=True)
         return
 
@@ -895,7 +896,7 @@ async def view_passenger(call: types.CallbackQuery):
         reply_markup=None
     )
 
-    # alert foydalanuvchiga (o‘sha haydovchiga) faqat tasdiqlash uchun
+    # Alert chiqadi: kim qabul qilgani
     await call.answer(f"✅ Siz e’loni qabul qildingiz.", show_alert=True)
 
 # ---------------- UNIVERSAL "ORQAGA" HANDLER ----------------
