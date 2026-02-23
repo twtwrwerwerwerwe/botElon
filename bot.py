@@ -675,12 +675,6 @@ async def pass_phone(message: types.Message):
     data['users'][uid]['state'] = None
     save_json(DATA_FILE, data)
 
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.utils.callback_data import CallbackData
-
-# Callback data yaratamiz
-passenger_cb = CallbackData("pass", "action", "ad_id")
-
 async def submit_passenger_ad(user_id, ad_text):
     ad_id = str(int(time.time()*1000))  # unique id
     ads['passenger'][ad_id] = {
@@ -691,47 +685,18 @@ async def submit_passenger_ad(user_id, ad_text):
     }
     save_json(ADS_FILE, ads)
 
+    # Foydalanuvchiga xabar
+    await bot.send_message(user_id, "✅ Eloningiz shofirlarga yuborildi. Iltimos, shofir javobini kuting.")
+
     kb = InlineKeyboardMarkup()
-    kb.add(InlineKeyboardButton("📥 Ko‘rish", callback_data=passenger_cb.new(action="view", ad_id=ad_id)))
-    kb.add(InlineKeyboardButton("✅ Qabul qilish", callback_data=passenger_cb.new(action="accept", ad_id=ad_id)))
+    # Guruhdagi xabarda tugma callback ishlatadi (botga kirish uchun)
+    kb.add(InlineKeyboardButton("📥 Ko‘rish", callback_data=f"view_pass:{ad_id}"))
 
     for ch in PASSENGER_CHANNELS:
         msg = await bot.send_message(ch, f"\n{ad_text[:100]}", reply_markup=kb)
         ads['passenger'][ad_id]['group_msg_id'] = msg.message_id
+
     save_json(ADS_FILE, ads)
-
-@dp.callback_query_handler(passenger_cb.filter())
-async def passenger_cb_handler(call: types.CallbackQuery, callback_data: dict):
-    action = callback_data['action']
-    ad_id = callback_data['ad_id']
-    user_id = str(call.from_user.id)
-    ad = ads['passenger'].get(ad_id)
-
-    if not ad:
-        await call.answer("❌ E’lon topilmadi.", show_alert=True)
-        return
-
-    if action == "accept":
-        if ad.get('taken_by') is None:
-            ad['taken_by'] = user_id
-            save_json(ADS_FILE, ads)
-
-            # Guruhdagi xabarni minimal o‘zgartirish (masalan, "Qabul qilindi" qo‘shiladi)
-            group_msg_id = ad.get('group_msg_id')
-            for ch in PASSENGER_CHANNELS:
-                try:
-                    await bot.edit_message_text(f"{ad['text']}\n\n✅ Qabul qilindi", ch, group_msg_id)
-                except:
-                    pass
-
-            # Alertda kim qabul qilganini ko‘rsatish
-            await call.answer(f"✅ Siz {call.from_user.full_name} sifatida e’lonni qabul qildingiz!", show_alert=True)
-
-        else:
-            # Allaqachon qabul qilingan
-            taker_id = ad['taken_by']
-            taker_name = data['users'].get(taker_id, {}).get('full_name', 'Boshqa haydovchi')
-            await call.answer(f"❌ Bu e’lon allaqachon {taker_name} tomonidan qabul qilingan.", show_alert=True)
 
 
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
