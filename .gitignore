@@ -1,22 +1,4 @@
-# Python
 __pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-*.sqlite3
-
-# Virtual Environment
-venv/
-env/
-ENV/
-
-# Logs
-*.log
-
-# JSON / Data files (agar saqlashni xohlamasangiz)
-data.json
-ads.json
-
-# OS files
-.DS_Store
-Thumbs.db
+*.pyc
+storage_data/
+.env
