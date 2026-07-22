@@ -16,7 +16,7 @@ ADMIN_PHONE = "+998940081100"         # admin telefon raqami (foydalanuvchiga ko
 ADMIN_USERNAME = "@Taksi_2300"     # admin telegram username (foydalanuvchiga ko'rsatiladi)
 
 # ==================== GURUH / KANALLAR ====================
-DRIVER_CHANNELS = [-1003292352387, -1002558743974, -1002258300973, -1001168970257, -1002401105872, -1002071453667, -1002336638025, -1002280167812, -1001742021244, -1002671120549, -1002349130903,-1001845354641, -1002196478283, -1002454716537]     # haydovchilar e'lonlari shu yerga tushadi
+DRIVER_CHANNELS = [-1002558743974, -1002258300973, -1001168970257, -1002401105872, -1002336638025, -1002280167812, -1001742021244, -1002454716537]     # haydovchilar e'lonlari shu yerga tushadi
 PASSENGER_CHANNELS = [-1003871778653]  # yo'lovchilar e'lonlari shu yerga tushadi
 
 # ==================== FAYLLAR ====================
